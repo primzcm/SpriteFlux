@@ -53,6 +53,13 @@ final class OverlayWindowController: NSWindowController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    override func showWindow(_ sender: Any?) {
+        if window == nil {
+            _ = self.window
+        }
+        window?.orderFrontRegardless()
+    }
+
     @discardableResult
     func loadMedia(url: URL) -> Bool {
         guard let size = overlayView.loadMedia(url: url) else {
@@ -105,7 +112,7 @@ final class OverlayWindowController: NSWindowController {
 
         let ignoresClicks = settings.clickThroughEnabled && !settings.isMoveMode
         window.ignoresMouseEvents = ignoresClicks
-        window.isMovableByWindowBackground = !ignoresClicks
+        window.isMovableByWindowBackground = false
     }
 
     private func resizeWindow(for mediaSize: CGSize) {

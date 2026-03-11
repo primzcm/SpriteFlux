@@ -66,8 +66,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         statusItem.menu = menu
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "SpriteFlux")
-            button.image?.isTemplate = true
+            if let image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "SpriteFlux") {
+                button.image = image
+                button.image?.isTemplate = true
+                button.title = ""
+            } else {
+                button.image = nil
+                button.title = "SF"
+            }
+            button.toolTip = "SpriteFlux"
         }
 
         updateMenuState()
@@ -78,6 +85,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openAnimationFile() {
+        NSApp.activate(ignoringOtherApps: true)
+
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .gif]
         panel.canChooseFiles = true

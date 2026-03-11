@@ -7,6 +7,12 @@ DONE
 - Added persistence for window position, selected file, and modes.
 - Documented usage and project rules.
 - Fixed menu bar initialization order and deprecated file type API usage.
+- Made the menu bar item always visible and prevented key-window warnings.
+- Ensured the open file dialog appears for the menu bar app.
+- Restored the sparkles menu bar icon with a fallback title.
+- Enabled drag movement using overlay view mouse events.
+- Prevented visual ghosting by disabling background window movement while dragging.
+- Improved drag tracking to follow the mouse smoothly.
 
 IN-PROGRESS
 

@@ -9,11 +9,13 @@ final class VideoPlayerView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
     }
 
     func load(url: URL) -> CGSize? {
@@ -25,7 +27,8 @@ final class VideoPlayerView: NSView {
         let layer = AVPlayerLayer(player: queuePlayer)
         layer.videoGravity = .resizeAspect
 
-        self.layer = layer
+        self.layer?.sublayers?.removeAll()
+        self.layer?.addSublayer(layer)
         self.playerLayer = layer
         self.player = queuePlayer
         self.looper = looper

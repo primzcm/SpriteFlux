@@ -20,7 +20,7 @@ SpriteFlux is a native macOS menu bar overlay app that displays a floating anima
 2. Select the `SpriteFlux` scheme.
 3. Build and run.
 
-The app runs as a menu bar agent (no Dock icon). Use the menu bar icon to control it.
+The app runs as a menu bar agent (no Dock icon). Use the sparkles icon in the menu bar to control it (falls back to `SF` if symbols are unavailable).
 
 ## Hotkeys
 - Toggle Move Mode: Cmd + Shift + M
