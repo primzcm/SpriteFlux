@@ -1,5 +1,9 @@
 import Cocoa
 
+extension Notification.Name {
+    static let overlayWindowControllerStateDidChange = Notification.Name("OverlayWindowControllerStateDidChange")
+}
+
 final class OverlayWindowController: NSWindowController {
     private let settings = SettingsManager.shared
     private let overlayView = OverlayView()
@@ -14,6 +18,10 @@ final class OverlayWindowController: NSWindowController {
 
     var isMoveModeEnabled: Bool {
         settings.isMoveMode
+    }
+
+    var currentMediaURL: URL? {
+        settings.lastFileURL
     }
 
     init() {
@@ -40,6 +48,7 @@ final class OverlayWindowController: NSWindowController {
 
         applySavedPosition()
         applyInteractionMode()
+        postStateDidChange()
 
         NotificationCenter.default.addObserver(
             self,
@@ -68,6 +77,7 @@ final class OverlayWindowController: NSWindowController {
 
         settings.lastFileURL = url
         resizeWindow(for: size)
+        postStateDidChange()
         return true
     }
 
@@ -82,6 +92,7 @@ final class OverlayWindowController: NSWindowController {
         }
 
         applyInteractionMode()
+        postStateDidChange()
     }
 
     func toggleClickThrough() {
@@ -93,6 +104,7 @@ final class OverlayWindowController: NSWindowController {
         }
 
         applyInteractionMode()
+        postStateDidChange()
     }
 
     func resetPosition() {
@@ -133,7 +145,7 @@ final class OverlayWindowController: NSWindowController {
         }
 
         let maxSide = max(mediaSize.width, mediaSize.height)
-        var scale = min(1.0, maxDimension / maxSide)
+        let scale = min(1.0, maxDimension / maxSide)
         var scaled = CGSize(width: mediaSize.width * scale, height: mediaSize.height * scale)
 
         let currentMax = max(scaled.width, scaled.height)
@@ -209,5 +221,9 @@ final class OverlayWindowController: NSWindowController {
         let x = screenFrame.maxX - size.width - 40
         let y = screenFrame.midY - size.height / 2
         return NSPoint(x: max(screenFrame.minX, x), y: max(screenFrame.minY, y))
+    }
+
+    private func postStateDidChange() {
+        NotificationCenter.default.post(name: .overlayWindowControllerStateDidChange, object: self)
     }
 }

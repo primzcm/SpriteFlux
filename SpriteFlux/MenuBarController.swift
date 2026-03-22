@@ -1,32 +1,44 @@
 import Cocoa
 import UniformTypeIdentifiers
 
-final class MenuBarController: NSObject, NSMenuDelegate {
+final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     private let statusItem: NSStatusItem
     private weak var overlayWindowController: OverlayWindowController?
-
-    private let toggleMoveModeItem: NSMenuItem
-    private let toggleClickThroughItem: NSMenuItem
+    private let dashboardViewController: DashboardViewController
+    private let dashboardWindowController: DashboardWindowController
+    private let quickMenu: NSMenu
+    private let toggleDashboardMenuItem: NSMenuItem
+    private let toggleMoveModeMenuItem: NSMenuItem
+    private let toggleClickThroughMenuItem: NSMenuItem
 
     init(overlayWindowController: OverlayWindowController) {
         self.overlayWindowController = overlayWindowController
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-
-        toggleMoveModeItem = NSMenuItem(
-            title: "Toggle Move Mode",
+        dashboardViewController = DashboardViewController()
+        dashboardWindowController = DashboardWindowController(contentViewController: dashboardViewController)
+        quickMenu = NSMenu()
+        toggleDashboardMenuItem = NSMenuItem(
+            title: "Show Dashboard",
+            action: #selector(toggleDashboardFromMenu),
+            keyEquivalent: ""
+        )
+        toggleMoveModeMenuItem = NSMenuItem(
+            title: "Move Mode",
             action: #selector(toggleMoveMode),
             keyEquivalent: "m"
         )
-
-        toggleClickThroughItem = NSMenuItem(
-            title: "Toggle Click-through",
+        toggleClickThroughMenuItem = NSMenuItem(
+            title: "Click-through",
             action: #selector(toggleClickThrough),
             keyEquivalent: "c"
         )
 
         super.init()
 
-        let menu = NSMenu()
+        dashboardViewController.delegate = self
+
+        toggleDashboardMenuItem.target = self
+        quickMenu.addItem(toggleDashboardMenuItem)
 
         let openItem = NSMenuItem(
             title: "Open Animation File...",
@@ -34,15 +46,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "o"
         )
         openItem.target = self
-        menu.addItem(openItem)
+        quickMenu.addItem(openItem)
 
-        menu.addItem(.separator())
+        quickMenu.addItem(.separator())
 
-        toggleMoveModeItem.target = self
-        menu.addItem(toggleMoveModeItem)
+        toggleMoveModeMenuItem.target = self
+        quickMenu.addItem(toggleMoveModeMenuItem)
 
-        toggleClickThroughItem.target = self
-        menu.addItem(toggleClickThroughItem)
+        toggleClickThroughMenuItem.target = self
+        quickMenu.addItem(toggleClickThroughMenuItem)
 
         let resetItem = NSMenuItem(
             title: "Reset Position",
@@ -50,9 +62,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "r"
         )
         resetItem.target = self
-        menu.addItem(resetItem)
+        quickMenu.addItem(resetItem)
 
-        menu.addItem(.separator())
+        quickMenu.addItem(.separator())
 
         let quitItem = NSMenuItem(
             title: "Quit",
@@ -60,10 +72,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "q"
         )
         quitItem.target = self
-        menu.addItem(quitItem)
-
-        menu.delegate = self
-        statusItem.menu = menu
+        quickMenu.addItem(quitItem)
 
         if let button = statusItem.button {
             if let image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "SpriteFlux") {
@@ -75,13 +84,42 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 button.title = "SF"
             }
             button.toolTip = "SpriteFlux"
+            button.target = self
+            button.action = #selector(handleStatusItemClick(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
-        updateMenuState()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(overlayStateDidChange),
+            name: .overlayWindowControllerStateDidChange,
+            object: overlayWindowController
+        )
+
+        updateDashboardState()
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
-        updateMenuState()
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func handleStatusItemClick(_ sender: Any?) {
+        guard let button = statusItem.button,
+              let event = NSApp.currentEvent else {
+            return
+        }
+
+        if event.type == .rightMouseUp {
+            updateQuickMenuState()
+            NSMenu.popUpContextMenu(quickMenu, with: event, for: button)
+            return
+        }
+
+        toggleDashboardWindow()
+    }
+
+    @objc private func toggleDashboardFromMenu() {
+        toggleDashboardWindow()
     }
 
     @objc private func openAnimationFile() {
@@ -103,17 +141,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 self.showLoadFailedAlert()
                 return
             }
+
+            self.updateDashboardState()
         }
     }
 
     @objc private func toggleMoveMode() {
         overlayWindowController?.toggleMoveMode()
-        updateMenuState()
+        updateDashboardState()
     }
 
     @objc private func toggleClickThrough() {
         overlayWindowController?.toggleClickThrough()
-        updateMenuState()
+        updateDashboardState()
     }
 
     @objc private func resetPosition() {
@@ -124,13 +164,40 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    private func updateMenuState() {
+    @objc private func overlayStateDidChange() {
+        updateDashboardState()
+    }
+
+    func showDashboardWindow() {
+        updateDashboardState()
+        dashboardWindowController.showDashboard()
+        updateQuickMenuState()
+    }
+
+    private func toggleDashboardWindow() {
+        updateDashboardState()
+        dashboardWindowController.toggleVisibility()
+        updateQuickMenuState()
+    }
+
+    private func updateDashboardState() {
         guard let overlay = overlayWindowController else {
             return
         }
 
-        toggleMoveModeItem.state = overlay.isMoveModeEnabled ? .on : .off
-        toggleClickThroughItem.state = overlay.clickThroughEnabled ? .on : .off
+        let state = DashboardState(
+            currentFileName: overlay.currentMediaURL?.lastPathComponent,
+            moveModeEnabled: overlay.isMoveModeEnabled,
+            clickThroughEnabled: overlay.clickThroughEnabled
+        )
+        dashboardViewController.render(state)
+        updateQuickMenuState()
+    }
+
+    private func updateQuickMenuState() {
+        toggleDashboardMenuItem.title = dashboardWindowController.isDashboardVisible ? "Hide Dashboard" : "Show Dashboard"
+        toggleMoveModeMenuItem.state = overlayWindowController?.isMoveModeEnabled == true ? .on : .off
+        toggleClickThroughMenuItem.state = overlayWindowController?.clickThroughEnabled == true ? .on : .off
     }
 
     private func showLoadFailedAlert() {
@@ -139,5 +206,30 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         alert.informativeText = "SpriteFlux supports MP4, MOV, and GIF files."
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    func dashboardViewControllerDidRequestOpenAnimation(_ controller: DashboardViewController) {
+        openAnimationFile()
+    }
+
+    func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController) {
+        toggleMoveMode()
+    }
+
+    func dashboardViewControllerDidToggleClickThrough(_ controller: DashboardViewController) {
+        toggleClickThrough()
+    }
+
+    func dashboardViewControllerDidRequestResetPosition(_ controller: DashboardViewController) {
+        resetPosition()
+    }
+
+    func dashboardViewControllerDidRequestHide(_ controller: DashboardViewController) {
+        dashboardWindowController.hideDashboard()
+        updateQuickMenuState()
+    }
+
+    func dashboardViewControllerDidRequestQuit(_ controller: DashboardViewController) {
+        quitApp()
     }
 }

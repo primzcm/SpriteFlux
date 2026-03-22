@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-22
+### Added
+- AppKit dashboard window that opens from the menu bar icon and can be hidden without quitting the app.
+- Dashboard status summary for the active animation plus direct controls for loading media, toggling move mode, toggling click-through, resetting position, and quitting.
+- Right-click quick menu on the menu bar icon for dashboard visibility, move mode, click-through, and other overlay actions.
+
+### Changed
+- The dashboard window now opens automatically when SpriteFlux launches and stays available until the user hides it.
+
 ## [0.1.0] - 2026-02-07
 ### Added
 - AppKit-based overlay window that stays on top of all spaces and windows.

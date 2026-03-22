@@ -20,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let url = SettingsManager.shared.lastFileURL {
             overlay.loadMedia(url: url)
         }
+
+        menuBarController?.showDashboardWindow()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

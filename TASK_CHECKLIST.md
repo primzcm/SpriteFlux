@@ -13,6 +13,9 @@ DONE
 - Enabled drag movement using overlay view mouse events.
 - Prevented visual ghosting by disabling background window movement while dragging.
 - Improved drag tracking to follow the mouse smoothly.
+- Replaced the left-click menu with a hideable dashboard window opened from the status bar icon.
+- Added right-click status bar actions for toggling move mode and click-through directly from the icon menu.
+- Made the dashboard window open automatically on launch until the user hides it.
 
 IN-PROGRESS
 
