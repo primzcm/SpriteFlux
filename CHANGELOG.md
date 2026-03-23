@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `.gitignore` to keep local Xcode user state and build artifacts out of version control.
 - Added dashboard drag-and-drop loading for supported asset files.
 - Added a file-backed asset library stored in Application Support with copied media files and generated thumbnails.
+- Added multi-companion scene support with one overlay window per active asset and persisted selection/position state.
 
 ### Changed
 - Polished the dashboard with a visible loaded-file label, slider value readouts, and clearer labeled actions.
 - Expanded SpriteFlux asset support from video plus GIF to include PNG, JPG/JPEG, and WEBP files.
 - Applied a reviewed subset of Xcode recommended project settings for warnings, debug build speed, and release dead code stripping.
 - Replaced the temporary recent-assets list with a saved library that supports load, favorite, rename, and delete actions.
+- Changed the dashboard controls to operate on the selected active companion and updated the library to add companions into the scene instead of replacing a single overlay.
 
 ## [0.2.1] - 2026-03-23
 ### Added

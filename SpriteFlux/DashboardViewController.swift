@@ -1,5 +1,13 @@
 import Cocoa
 
+struct DashboardActiveCompanion {
+    let id: String
+    let name: String
+    let formatLabel: String
+    let thumbnailURL: URL?
+    let isSelected: Bool
+}
+
 struct DashboardLibraryAsset {
     let id: String
     let name: String
@@ -7,13 +15,15 @@ struct DashboardLibraryAsset {
     let thumbnailURL: URL?
     let sourceFileName: String
     let isFavorite: Bool
-    let isCurrent: Bool
+    let isActive: Bool
 }
 
 struct DashboardState {
     let currentFileName: String?
     let currentFileURL: URL?
+    let activeCompanions: [DashboardActiveCompanion]
     let libraryAssets: [DashboardLibraryAsset]
+    let hasSelectedCompanion: Bool
     let moveModeEnabled: Bool
     let clickThroughEnabled: Bool
     let scale: Double
@@ -23,10 +33,12 @@ struct DashboardState {
 protocol DashboardViewControllerDelegate: AnyObject {
     func dashboardViewControllerDidRequestOpenAnimation(_ controller: DashboardViewController)
     func dashboardViewController(_ controller: DashboardViewController, didRequestImportAsset url: URL)
-    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadLibraryAsset id: String)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestAddLibraryAsset id: String)
     func dashboardViewController(_ controller: DashboardViewController, didToggleFavoriteLibraryAsset id: String)
     func dashboardViewController(_ controller: DashboardViewController, didRenameLibraryAsset id: String, to newName: String)
     func dashboardViewController(_ controller: DashboardViewController, didDeleteLibraryAsset id: String)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestSelectActiveCompanion id: String)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestRemoveActiveCompanion id: String)
     func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController)
     func dashboardViewControllerDidToggleClickThrough(_ controller: DashboardViewController)
     func dashboardViewControllerDidRequestResetPosition(_ controller: DashboardViewController)
@@ -107,9 +119,13 @@ final class DashboardViewController: NSViewController {
     private let fileNameLabel = NSTextField(labelWithString: "")
     private let scaleValueLabel = NSTextField(labelWithString: "")
     private let opacityValueLabel = NSTextField(labelWithString: "")
+    private let activeCompanionsStack = NSStackView()
+    private let activeCompanionsEmptyLabel = NSTextField(labelWithString: "No active companions")
+    private let activeCompanionsScrollView = NSScrollView()
     private let recentAssetsStack = NSStackView()
     private let recentAssetsEmptyLabel = NSTextField(labelWithString: "No recent assets yet")
     private let libraryScrollView = NSScrollView()
+    private let resetPositionButton = NSButton()
 
     override func loadView() {
         let visualEffectView = DashboardDropView()
@@ -162,7 +178,48 @@ final class DashboardViewController: NSViewController {
         headerStack.alignment = .centerX
         headerStack.spacing = 12
 
-        // 2. Toggles Section
+        // 2. Active Companions
+        let activeTitleLabel = NSTextField(labelWithString: "Active")
+        activeTitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+
+        let activeHintLabel = NSTextField(labelWithString: "Select the companion you want to edit or remove.")
+        activeHintLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        activeHintLabel.textColor = .secondaryLabelColor
+
+        activeCompanionsStack.orientation = .vertical
+        activeCompanionsStack.alignment = .leading
+        activeCompanionsStack.spacing = 8
+        activeCompanionsStack.translatesAutoresizingMaskIntoConstraints = false
+
+        activeCompanionsEmptyLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        activeCompanionsEmptyLabel.textColor = .tertiaryLabelColor
+
+        let activeDocumentView = NSView()
+        activeDocumentView.translatesAutoresizingMaskIntoConstraints = false
+        activeDocumentView.addSubview(activeCompanionsStack)
+
+        NSLayoutConstraint.activate([
+            activeCompanionsStack.leadingAnchor.constraint(equalTo: activeDocumentView.leadingAnchor),
+            activeCompanionsStack.trailingAnchor.constraint(equalTo: activeDocumentView.trailingAnchor),
+            activeCompanionsStack.topAnchor.constraint(equalTo: activeDocumentView.topAnchor),
+            activeCompanionsStack.bottomAnchor.constraint(equalTo: activeDocumentView.bottomAnchor),
+            activeCompanionsStack.widthAnchor.constraint(equalTo: activeDocumentView.widthAnchor)
+        ])
+
+        activeCompanionsScrollView.translatesAutoresizingMaskIntoConstraints = false
+        activeCompanionsScrollView.drawsBackground = false
+        activeCompanionsScrollView.hasVerticalScroller = true
+        activeCompanionsScrollView.hasHorizontalScroller = false
+        activeCompanionsScrollView.autohidesScrollers = true
+        activeCompanionsScrollView.borderType = .noBorder
+        activeCompanionsScrollView.documentView = activeDocumentView
+        activeCompanionsScrollView.heightAnchor.constraint(equalToConstant: 96).isActive = true
+
+        let activeSection = DashboardViewController.makeSection(
+            arrangedSubviews: [activeTitleLabel, activeHintLabel, activeCompanionsScrollView]
+        )
+
+        // 3. Toggles Section
         moveModeSwitch.target = self
         moveModeSwitch.action = #selector(toggleMoveMode)
         let moveModeRow = DashboardViewController.makeSwitchRow(title: "Move Mode", icon: "arrow.up.and.down.and.arrow.left.and.right", toggle: moveModeSwitch)
@@ -173,7 +230,7 @@ final class DashboardViewController: NSViewController {
 
         let togglesSection = DashboardViewController.makeSection(arrangedSubviews: [moveModeRow, clickThroughRow])
 
-        // 3. Sliders Section
+        // 4. Sliders Section
         scaleSlider.target = self
         scaleSlider.action = #selector(scaleChanged)
         opacitySlider.target = self
@@ -209,7 +266,7 @@ final class DashboardViewController: NSViewController {
 
         let slidersSection = DashboardViewController.makeSection(arrangedSubviews: [scaleStack, opacityStack])
 
-        // 4. Library
+        // 5. Library
         let libraryTitleLabel = NSTextField(labelWithString: "Library")
         libraryTitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
 
@@ -254,20 +311,22 @@ final class DashboardViewController: NSViewController {
             arrangedSubviews: [libraryTitleLabel, libraryHintLabel, libraryScrollView]
         )
 
-        // 5. Actions
+        // 6. Actions
         let openButton = NSButton(title: "Open…", target: self, action: #selector(openAnimationFile))
         openButton.bezelStyle = .rounded
         openButton.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
         openButton.imagePosition = .imageLeading
         openButton.toolTip = "Open an asset from disk"
         
-        let resetButton = NSButton(title: "Reset Position", target: self, action: #selector(resetPosition))
-        resetButton.bezelStyle = .rounded
-        resetButton.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
-        resetButton.imagePosition = .imageLeading
-        resetButton.toolTip = "Reset overlay position"
+        resetPositionButton.title = "Reset Position"
+        resetPositionButton.target = self
+        resetPositionButton.action = #selector(resetPosition)
+        resetPositionButton.bezelStyle = .rounded
+        resetPositionButton.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
+        resetPositionButton.imagePosition = .imageLeading
+        resetPositionButton.toolTip = "Reset overlay position"
 
-        let buttonRow = NSStackView(views: [openButton, resetButton])
+        let buttonRow = NSStackView(views: [openButton, resetPositionButton])
         buttonRow.orientation = .horizontal
         buttonRow.distribution = .fillEqually
         buttonRow.spacing = 10
@@ -280,7 +339,7 @@ final class DashboardViewController: NSViewController {
 
         let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow, optionsButton])
 
-        // 6. Footer
+        // 7. Footer
         let hideButton = NSButton(image: NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "Hide Dashboard")!, target: self, action: #selector(hideDashboard))
         hideButton.isBordered = false
         hideButton.contentTintColor = .secondaryLabelColor
@@ -298,13 +357,14 @@ final class DashboardViewController: NSViewController {
         footerStack.addView(quitButton, in: .trailing)
 
         // Assembly
-        let contentStack = NSStackView(views: [headerStack, togglesSection, slidersSection, librarySection, actionsSection, footerStack])
+        let contentStack = NSStackView(views: [headerStack, activeSection, togglesSection, slidersSection, librarySection, actionsSection, footerStack])
         contentStack.orientation = .vertical
         contentStack.alignment = .leading
         contentStack.spacing = 14
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
         headerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        activeSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         togglesSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         slidersSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         librarySection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
@@ -346,6 +406,8 @@ final class DashboardViewController: NSViewController {
     }
 
     func render(_ state: DashboardState) {
+        reloadActiveCompanions(state.activeCompanions)
+        setSelectionControlsEnabled(state.hasSelectedCompanion)
         moveModeSwitch.state = state.moveModeEnabled ? .on : .off
         clickThroughSwitch.state = state.clickThroughEnabled ? .on : .off
         
@@ -359,15 +421,18 @@ final class DashboardViewController: NSViewController {
         }
 
         if let url = state.currentFileURL, url != loadedFileURL {
-             loadedFileURL = url
-             _ = thumbnailView.loadMedia(url: url)
+            loadedFileURL = url
+            _ = thumbnailView.loadMedia(url: url)
+        } else if state.currentFileURL == nil {
+            loadedFileURL = nil
+            thumbnailView.clearContent()
         }
 
         if let name = state.currentFileName, !name.isEmpty {
             fileNameLabel.stringValue = name
             fileNameLabel.textColor = .secondaryLabelColor
         } else {
-            fileNameLabel.stringValue = "No animation loaded"
+            fileNameLabel.stringValue = "No companion selected"
             fileNameLabel.textColor = .tertiaryLabelColor
         }
 
@@ -388,12 +453,12 @@ final class DashboardViewController: NSViewController {
         delegate?.dashboardViewControllerDidRequestOpenAnimation(self)
     }
 
-    @objc private func loadLibraryAsset(_ sender: NSButton) {
+    @objc private func addLibraryAsset(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue else {
             return
         }
 
-        delegate?.dashboardViewController(self, didRequestLoadLibraryAsset: id)
+        delegate?.dashboardViewController(self, didRequestAddLibraryAsset: id)
     }
 
     @objc private func toggleFavoriteLibraryAsset(_ sender: NSButton) {
@@ -442,6 +507,22 @@ final class DashboardViewController: NSViewController {
         }
 
         delegate?.dashboardViewController(self, didDeleteLibraryAsset: id)
+    }
+
+    @objc private func selectActiveCompanion(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didRequestSelectActiveCompanion: id)
+    }
+
+    @objc private func removeActiveCompanion(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didRequestRemoveActiveCompanion: id)
     }
 
     @objc private func openOptions() {
@@ -551,6 +632,22 @@ final class DashboardViewController: NSViewController {
         return box
     }
 
+    private func reloadActiveCompanions(_ companions: [DashboardActiveCompanion]) {
+        activeCompanionsStack.arrangedSubviews.forEach { view in
+            activeCompanionsStack.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+
+        guard companions.isEmpty == false else {
+            activeCompanionsStack.addArrangedSubview(activeCompanionsEmptyLabel)
+            return
+        }
+
+        for companion in companions {
+            activeCompanionsStack.addArrangedSubview(makeActiveCompanionRow(for: companion))
+        }
+    }
+
     private func reloadLibraryAssets(_ assets: [DashboardLibraryAsset]) {
         recentAssetsStack.arrangedSubviews.forEach { view in
             recentAssetsStack.removeArrangedSubview(view)
@@ -594,13 +691,13 @@ final class DashboardViewController: NSViewController {
         labelsStack.alignment = .leading
         labelsStack.spacing = 3
 
-        let loadButton = makeLibraryActionButton(
-            symbolName: asset.isCurrent ? "play.circle.fill" : "play.circle",
-            toolTip: asset.isCurrent ? "Currently loaded" : "Load asset",
+        let addButton = makeLibraryActionButton(
+            symbolName: asset.isActive ? "plus.circle.fill" : "plus.circle",
+            toolTip: "Add companion",
             id: asset.id,
-            action: #selector(loadLibraryAsset(_:))
+            action: #selector(addLibraryAsset(_:))
         )
-        loadButton.contentTintColor = asset.isCurrent ? .controlAccentColor : .secondaryLabelColor
+        addButton.contentTintColor = asset.isActive ? .controlAccentColor : .secondaryLabelColor
 
         let favoriteButton = makeLibraryActionButton(
             symbolName: asset.isFavorite ? "star.fill" : "star",
@@ -624,7 +721,7 @@ final class DashboardViewController: NSViewController {
             action: #selector(deleteLibraryAsset(_:))
         )
 
-        let controlsStack = NSStackView(views: [loadButton, favoriteButton, renameButton, deleteButton])
+        let controlsStack = NSStackView(views: [addButton, favoriteButton, renameButton, deleteButton])
         controlsStack.orientation = .horizontal
         controlsStack.alignment = .centerY
         controlsStack.spacing = 4
@@ -634,6 +731,60 @@ final class DashboardViewController: NSViewController {
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 10
+        labelsStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        controlsStack.setContentHuggingPriority(.required, for: .horizontal)
+        return row
+    }
+
+    private func makeActiveCompanionRow(for companion: DashboardActiveCompanion) -> NSView {
+        let thumbnailImageView = NSImageView()
+        thumbnailImageView.translatesAutoresizingMaskIntoConstraints = false
+        thumbnailImageView.imageScaling = .scaleAxesIndependently
+        thumbnailImageView.wantsLayer = true
+        thumbnailImageView.layer?.cornerRadius = 8
+        thumbnailImageView.layer?.masksToBounds = true
+        thumbnailImageView.widthAnchor.constraint(equalToConstant: 34).isActive = true
+        thumbnailImageView.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        thumbnailImageView.image = companion.thumbnailURL.flatMap(NSImage.init(contentsOf:)) ?? NSImage(systemSymbolName: "photo", accessibilityDescription: nil)
+
+        let nameLabel = NSTextField(labelWithString: companion.name)
+        nameLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        nameLabel.lineBreakMode = .byTruncatingTail
+        nameLabel.maximumNumberOfLines = 1
+
+        let detailLabel = NSTextField(labelWithString: companion.formatLabel)
+        detailLabel.font = .systemFont(ofSize: 10, weight: .medium)
+        detailLabel.textColor = .secondaryLabelColor
+
+        let labelsStack = NSStackView(views: [nameLabel, detailLabel])
+        labelsStack.orientation = .vertical
+        labelsStack.alignment = .leading
+        labelsStack.spacing = 2
+
+        let selectButton = makeLibraryActionButton(
+            symbolName: companion.isSelected ? "checkmark.circle.fill" : "circle",
+            toolTip: companion.isSelected ? "Selected companion" : "Select companion",
+            id: companion.id,
+            action: #selector(selectActiveCompanion(_:))
+        )
+        selectButton.contentTintColor = companion.isSelected ? .controlAccentColor : .secondaryLabelColor
+
+        let removeButton = makeLibraryActionButton(
+            symbolName: "xmark.circle",
+            toolTip: "Remove companion",
+            id: companion.id,
+            action: #selector(removeActiveCompanion(_:))
+        )
+
+        let controlsStack = NSStackView(views: [selectButton, removeButton])
+        controlsStack.orientation = .horizontal
+        controlsStack.alignment = .centerY
+        controlsStack.spacing = 4
+
+        let row = NSStackView(views: [thumbnailImageView, labelsStack, controlsStack])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
         labelsStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
         controlsStack.setContentHuggingPriority(.required, for: .horizontal)
         return row
@@ -658,6 +809,14 @@ final class DashboardViewController: NSViewController {
         }
 
         return nameLabel.stringValue
+    }
+
+    private func setSelectionControlsEnabled(_ enabled: Bool) {
+        moveModeSwitch.isEnabled = enabled
+        clickThroughSwitch.isEnabled = enabled
+        scaleSlider.isEnabled = enabled
+        opacitySlider.isEnabled = enabled
+        resetPositionButton.isEnabled = enabled
     }
 
     private func updateScaleValueLabel(with scale: Double) {

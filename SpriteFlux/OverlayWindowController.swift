@@ -1,33 +1,52 @@
 import Cocoa
 
-extension Notification.Name {
-    static let overlayWindowControllerStateDidChange = Notification.Name("OverlayWindowControllerStateDidChange")
-}
-
 final class OverlayWindowController: NSWindowController {
-    private let settings = SettingsManager.shared
+    struct StateSnapshot {
+        let id: String
+        let origin: NSPoint
+        let scale: Double
+        let opacity: Double
+        let moveModeEnabled: Bool
+        let clickThroughEnabled: Bool
+    }
+
+    let companionID: String
     private let overlayView = OverlayView()
 
     private let defaultSize = CGSize(width: 300, height: 300)
     private let maxDimension: CGFloat = 360
     private let minDimension: CGFloat = 120
     private var currentMediaSize: CGSize = CGSize(width: 300, height: 300)
+    private(set) var clickThroughEnabled: Bool
+    private(set) var isMoveModeEnabled: Bool
+    private(set) var currentMediaURL: URL?
+    private var scale: Double
+    private var opacity: Double
+    private let initialOrigin: NSPoint?
+    private let defaultOriginOffsetIndex: Int
 
-    var clickThroughEnabled: Bool {
-        settings.clickThroughEnabled
-    }
+    var onStateChange: ((StateSnapshot) -> Void)?
 
-    var isMoveModeEnabled: Bool {
-        settings.isMoveMode
-    }
-
-    var currentMediaURL: URL? {
-        settings.lastFileURL
-    }
-
-    init() {
+    init(
+        companionID: String,
+        initialMediaURL: URL?,
+        initialScale: Double,
+        initialOpacity: Double,
+        clickThroughEnabled: Bool,
+        moveModeEnabled: Bool,
+        initialOrigin: NSPoint?,
+        defaultOriginOffsetIndex: Int
+    ) {
+        self.companionID = companionID
+        self.currentMediaURL = initialMediaURL
+        self.scale = initialScale
+        self.opacity = initialOpacity
+        self.clickThroughEnabled = clickThroughEnabled
+        self.isMoveModeEnabled = moveModeEnabled
+        self.initialOrigin = initialOrigin
+        self.defaultOriginOffsetIndex = defaultOriginOffsetIndex
         let size = defaultSize
-        let origin = OverlayWindowController.initialOrigin(for: size)
+        let origin = initialOrigin ?? OverlayWindowController.defaultOrigin(for: size, offsetIndex: defaultOriginOffsetIndex)
         let window = NSWindow(
             contentRect: NSRect(origin: origin, size: size),
             styleMask: [.borderless],
@@ -44,13 +63,18 @@ final class OverlayWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.contentView = overlayView
-        window.alphaValue = CGFloat(SettingsManager.shared.opacity)
+        window.alphaValue = CGFloat(initialOpacity)
 
         super.init(window: window)
 
+        if let initialMediaURL {
+            _ = loadMedia(url: initialMediaURL)
+        } else {
+            resizeWindow()
+        }
         applySavedPosition()
         applyInteractionMode()
-        postStateDidChange()
+        emitStateChange()
 
         NotificationCenter.default.addObserver(
             self,
@@ -78,37 +102,36 @@ final class OverlayWindowController: NSWindowController {
         }
 
         currentMediaSize = size
-        settings.lastFileURL = url
-        settings.registerRecentFile(url)
+        currentMediaURL = url
         resizeWindow()
-        postStateDidChange()
+        emitStateChange()
         return true
     }
 
     func toggleMoveMode() {
-        let newValue = !settings.isMoveMode
-        settings.isMoveMode = newValue
+        let newValue = !isMoveModeEnabled
+        isMoveModeEnabled = newValue
 
         if newValue {
-            settings.clickThroughEnabled = false
+            clickThroughEnabled = false
         } else {
-            settings.clickThroughEnabled = true
+            clickThroughEnabled = true
         }
 
         applyInteractionMode()
-        postStateDidChange()
+        emitStateChange()
     }
 
     func toggleClickThrough() {
-        let newValue = !settings.clickThroughEnabled
-        settings.clickThroughEnabled = newValue
+        let newValue = !clickThroughEnabled
+        clickThroughEnabled = newValue
 
         if newValue {
-            settings.isMoveMode = false
+            isMoveModeEnabled = false
         }
 
         applyInteractionMode()
-        postStateDidChange()
+        emitStateChange()
     }
 
     func resetPosition() {
@@ -116,27 +139,29 @@ final class OverlayWindowController: NSWindowController {
             return
         }
 
-        let origin = OverlayWindowController.defaultOrigin(for: window.frame.size)
+        let origin = OverlayWindowController.defaultOrigin(for: window.frame.size, offsetIndex: defaultOriginOffsetIndex)
         window.setFrameOrigin(origin)
-        settings.lastWindowOrigin = origin
+        emitStateChange()
     }
 
-    func updateScale() {
+    func setScale(_ scale: Double) {
+        self.scale = scale
         resizeWindow()
-        postStateDidChange()
+        emitStateChange()
     }
 
-    func updateOpacity() {
-        window?.alphaValue = CGFloat(settings.opacity)
-        postStateDidChange()
+    func setOpacity(_ opacity: Double) {
+        self.opacity = opacity
+        window?.alphaValue = CGFloat(opacity)
+        emitStateChange()
     }
 
     func clearMedia() {
         currentMediaSize = defaultSize
-        settings.lastFileURL = nil
+        currentMediaURL = nil
         overlayView.clearContent()
         resizeWindow()
-        postStateDidChange()
+        emitStateChange()
     }
 
     private func applyInteractionMode() {
@@ -144,7 +169,7 @@ final class OverlayWindowController: NSWindowController {
             return
         }
 
-        let ignoresClicks = settings.clickThroughEnabled && !settings.isMoveMode
+        let ignoresClicks = clickThroughEnabled && !isMoveModeEnabled
         window.ignoresMouseEvents = ignoresClicks
         window.isMovableByWindowBackground = false
     }
@@ -176,7 +201,7 @@ final class OverlayWindowController: NSWindowController {
             scaled = CGSize(width: scaled.width * upScale, height: scaled.height * upScale)
         }
 
-        let userScale = CGFloat(settings.scale)
+        let userScale = CGFloat(scale)
         return CGSize(width: scaled.width * userScale, height: scaled.height * userScale)
     }
 
@@ -202,7 +227,7 @@ final class OverlayWindowController: NSWindowController {
         }
 
         window.setFrame(frame, display: true)
-        settings.lastWindowOrigin = frame.origin
+        emitStateChange()
     }
 
     private func applySavedPosition() {
@@ -210,43 +235,48 @@ final class OverlayWindowController: NSWindowController {
             return
         }
 
-        if let saved = settings.lastWindowOrigin {
-            let candidate = NSRect(origin: saved, size: window.frame.size)
+        if let initialOrigin {
+            let candidate = NSRect(origin: initialOrigin, size: window.frame.size)
             let screenFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
             if let screenFrame = screenFrame, screenFrame.intersects(candidate) {
-                window.setFrameOrigin(saved)
+                window.setFrameOrigin(initialOrigin)
                 return
             }
         }
 
-        let origin = OverlayWindowController.defaultOrigin(for: window.frame.size)
+        let origin = OverlayWindowController.defaultOrigin(for: window.frame.size, offsetIndex: defaultOriginOffsetIndex)
         window.setFrameOrigin(origin)
     }
 
     @objc private func windowDidMove(_ notification: Notification) {
-        guard let window = window else {
+        guard window != nil else {
             return
         }
 
-        settings.lastWindowOrigin = window.frame.origin
+        emitStateChange()
     }
 
-    private static func initialOrigin(for size: CGSize) -> NSPoint {
-        let settings = SettingsManager.shared
-        if let saved = settings.lastWindowOrigin {
-            return saved
-        }
-        return defaultOrigin(for: size)
-    }
-
-    private static func defaultOrigin(for size: CGSize) -> NSPoint {
+    private static func defaultOrigin(for size: CGSize, offsetIndex: Int) -> NSPoint {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
-        let x = screenFrame.maxX - size.width - 40
-        let y = screenFrame.midY - size.height / 2
+        let offset = CGFloat(offsetIndex % 6) * 28
+        let x = screenFrame.maxX - size.width - 40 - offset
+        let y = screenFrame.midY - size.height / 2 - offset
         return NSPoint(x: max(screenFrame.minX, x), y: max(screenFrame.minY, y))
     }
 
-    private func postStateDidChange() {
-        NotificationCenter.default.post(name: .overlayWindowControllerStateDidChange, object: self)
+    private func emitStateChange() {
+        guard let window else {
+            return
+        }
+
+        let snapshot = StateSnapshot(
+            id: companionID,
+            origin: window.frame.origin,
+            scale: scale,
+            opacity: opacity,
+            moveModeEnabled: isMoveModeEnabled,
+            clickThroughEnabled: clickThroughEnabled
+        )
+        onStateChange?(snapshot)
     }
 }

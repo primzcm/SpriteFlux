@@ -1,26 +1,19 @@
 import Cocoa
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var overlayWindowController: OverlayWindowController?
+    private let companionManager = CompanionManager.shared
     private var menuBarController: MenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let overlay = OverlayWindowController()
-        overlay.showWindow(nil)
-        overlayWindowController = overlay
-        menuBarController = MenuBarController(overlayWindowController: overlay)
+        companionManager.bootstrapLegacyCompanionIfNeeded(from: SettingsManager.shared.lastFileURL)
+        menuBarController = MenuBarController(companionManager: companionManager)
 
-        HotkeyManager.shared.onHotkey = { [weak overlay] in
-            overlay?.toggleMoveMode()
+        HotkeyManager.shared.onHotkey = { [weak companionManager] in
+            companionManager?.toggleSelectedMoveMode()
         }
         HotkeyManager.shared.register()
-
-        if let url = SettingsManager.shared.lastFileURL,
-           overlay.loadMedia(url: url) == false {
-            SettingsManager.shared.lastFileURL = nil
-        }
 
         menuBarController?.showDashboardWindow()
     }

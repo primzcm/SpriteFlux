@@ -28,9 +28,11 @@ DONE
 - Expanded asset support to include PNG, JPG/JPEG, and WEBP files alongside video and GIF.
 - Added a file-backed asset library with copied assets, thumbnails, and dashboard management actions.
 - Added drag-and-drop import into the asset library from the dashboard.
+- Added multi-companion scene support with persisted active companions and per-companion overlay windows.
+- Updated the dashboard to select and manage active companions while adding assets from the library into the current scene.
 - Reviewed Xcode's recommended settings and applied the safe subset in the project file.
 
 IN-PROGRESS
 
 TODO
-- Optional settings expansion for additional shortcut actions, dashboard preferences, richer asset controls, and multi-character scenes.
+- Optional settings expansion for additional shortcut actions, dashboard preferences, richer asset controls, and saved scene presets.

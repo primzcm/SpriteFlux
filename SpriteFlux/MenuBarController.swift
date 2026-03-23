@@ -18,7 +18,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
 
     private let statusItem: NSStatusItem
     private let assetLibrary = AssetLibraryManager.shared
-    private weak var overlayWindowController: OverlayWindowController?
+    private let companionManager: CompanionManager
     private let dashboardViewController: DashboardViewController
     private let dashboardWindowController: DashboardWindowController
     private let shortcutSettingsWindowController: ShortcutSettingsWindowController
@@ -27,8 +27,8 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     private let toggleMoveModeMenuItem: NSMenuItem
     private let toggleClickThroughMenuItem: NSMenuItem
 
-    init(overlayWindowController: OverlayWindowController) {
-        self.overlayWindowController = overlayWindowController
+    init(companionManager: CompanionManager) {
+        self.companionManager = companionManager
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         dashboardViewController = DashboardViewController()
         dashboardWindowController = DashboardWindowController(contentViewController: dashboardViewController)
@@ -111,9 +111,9 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(overlayStateDidChange),
-            name: .overlayWindowControllerStateDidChange,
-            object: overlayWindowController
+            selector: #selector(companionStateDidChange),
+            name: .companionManagerStateDidChange,
+            object: companionManager
         )
 
         updateDashboardState()
@@ -152,11 +152,11 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
         panel.allowsMultipleSelection = false
 
         panel.begin { [weak self] response in
-            guard let self = self, response == .OK, let url = panel.url else {
+            guard let self, response == .OK, let url = panel.url else {
                 return
             }
 
-            guard self.importAndLoadAsset(from: url) else {
+            guard self.importAndAddCompanion(from: url) else {
                 self.showLoadFailedAlert()
                 return
             }
@@ -164,24 +164,24 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }
 
     @objc private func toggleMoveMode() {
-        overlayWindowController?.toggleMoveMode()
+        companionManager.toggleSelectedMoveMode()
         updateDashboardState()
     }
 
     @objc private func toggleClickThrough() {
-        overlayWindowController?.toggleClickThrough()
+        companionManager.toggleSelectedClickThrough()
         updateDashboardState()
     }
 
     @objc private func resetPosition() {
-        overlayWindowController?.resetPosition()
+        companionManager.resetSelectedPosition()
     }
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
     }
 
-    @objc private func overlayStateDidChange() {
+    @objc private func companionStateDidChange() {
         updateDashboardState()
     }
 
@@ -198,11 +198,25 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }
 
     private func updateDashboardState() {
-        guard let overlay = overlayWindowController else {
-            return
+        let selectedCompanion = companionManager.selectedCompanion()
+        let selectedController = companionManager.selectedController()
+        let selectedEntry = companionManager.selectedAssetEntry()
+
+        let activeCompanions: [DashboardActiveCompanion] = companionManager.allCompanions().compactMap { companion in
+            guard let entry = assetLibrary.entry(id: companion.assetEntryID) else {
+                return nil
+            }
+
+            return DashboardActiveCompanion(
+                id: companion.id,
+                name: entry.displayName,
+                formatLabel: entry.formatLabel,
+                thumbnailURL: assetLibrary.thumbnailURL(for: entry),
+                isSelected: companion.id == companionManager.selectedCompanionID
+            )
         }
 
-        let currentEntry = overlay.currentMediaURL.flatMap { assetLibrary.entry(forAssetURL: $0) }
+        let activeAssetEntryIDs = Set(companionManager.allCompanions().map(\.assetEntryID))
         let libraryAssets = assetLibrary.allEntries().map { entry in
             DashboardLibraryAsset(
                 id: entry.id,
@@ -211,27 +225,32 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
                 thumbnailURL: assetLibrary.thumbnailURL(for: entry),
                 sourceFileName: entry.originalFileName,
                 isFavorite: entry.isFavorite,
-                isCurrent: entry.id == currentEntry?.id
+                isActive: activeAssetEntryIDs.contains(entry.id)
             )
         }
 
         let state = DashboardState(
-            currentFileName: currentEntry?.displayName ?? overlay.currentMediaURL?.lastPathComponent,
-            currentFileURL: overlay.currentMediaURL,
+            currentFileName: selectedEntry?.displayName,
+            currentFileURL: selectedController?.currentMediaURL,
+            activeCompanions: activeCompanions,
             libraryAssets: libraryAssets,
-            moveModeEnabled: overlay.isMoveModeEnabled,
-            clickThroughEnabled: overlay.clickThroughEnabled,
-            scale: SettingsManager.shared.scale,
-            opacity: SettingsManager.shared.opacity
+            hasSelectedCompanion: selectedCompanion != nil,
+            moveModeEnabled: selectedController?.isMoveModeEnabled ?? false,
+            clickThroughEnabled: selectedController?.clickThroughEnabled ?? false,
+            scale: selectedCompanion?.scale ?? 1.0,
+            opacity: selectedCompanion?.opacity ?? 1.0
         )
         dashboardViewController.render(state)
         updateQuickMenuState()
     }
 
     private func updateQuickMenuState() {
+        let hasSelection = companionManager.selectedCompanion() != nil
         toggleDashboardMenuItem.title = dashboardWindowController.isDashboardVisible ? "Hide Dashboard" : "Show Dashboard"
-        toggleMoveModeMenuItem.state = overlayWindowController?.isMoveModeEnabled == true ? .on : .off
-        toggleClickThroughMenuItem.state = overlayWindowController?.clickThroughEnabled == true ? .on : .off
+        toggleMoveModeMenuItem.state = companionManager.selectedController()?.isMoveModeEnabled == true ? .on : .off
+        toggleClickThroughMenuItem.state = companionManager.selectedController()?.clickThroughEnabled == true ? .on : .off
+        toggleMoveModeMenuItem.isEnabled = hasSelection
+        toggleClickThroughMenuItem.isEnabled = hasSelection
     }
 
     private func showLoadFailedAlert() {
@@ -243,21 +262,12 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }
 
     @discardableResult
-    private func loadAsset(url: URL) -> Bool {
-        guard let overlay = overlayWindowController,
-              overlay.loadMedia(url: url) else {
-            return false
-        }
-
-        updateDashboardState()
-        return true
-    }
-
-    @discardableResult
-    private func importAndLoadAsset(from sourceURL: URL) -> Bool {
+    private func importAndAddCompanion(from sourceURL: URL) -> Bool {
         do {
             let entry = try assetLibrary.importAsset(from: sourceURL)
-            return loadAsset(url: assetLibrary.assetURL(for: entry))
+            _ = try companionManager.addCompanion(assetEntryID: entry.id)
+            updateDashboardState()
+            return true
         } catch {
             return false
         }
@@ -270,19 +280,16 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }
 
     func dashboardViewController(_ controller: DashboardViewController, didRequestImportAsset url: URL) {
-        guard importAndLoadAsset(from: url) else {
+        guard importAndAddCompanion(from: url) else {
             showLoadFailedAlert()
             return
         }
     }
 
-    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadLibraryAsset id: String) {
+    func dashboardViewController(_ controller: DashboardViewController, didRequestAddLibraryAsset id: String) {
         do {
-            let entry = try assetLibrary.markUsed(id: id)
-            guard loadAsset(url: assetLibrary.assetURL(for: entry)) else {
-                showLoadFailedAlert()
-                return
-            }
+            _ = try companionManager.addCompanion(assetEntryID: id)
+            updateDashboardState()
         } catch {
             showLoadFailedAlert()
         }
@@ -307,18 +314,23 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }
 
     func dashboardViewController(_ controller: DashboardViewController, didDeleteLibraryAsset id: String) {
-        let deletedEntry = assetLibrary.entry(id: id)
-
         do {
+            companionManager.removeCompanions(usingAssetEntryID: id)
             try assetLibrary.removeEntry(id: id)
-            if let deletedEntry,
-               overlayWindowController?.currentMediaURL?.path == assetLibrary.assetURL(for: deletedEntry).path {
-                overlayWindowController?.clearMedia()
-            }
             updateDashboardState()
         } catch {
             NSSound.beep()
         }
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRequestSelectActiveCompanion id: String) {
+        companionManager.selectCompanion(id: id)
+        updateDashboardState()
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRequestRemoveActiveCompanion id: String) {
+        companionManager.removeCompanion(id: id)
+        updateDashboardState()
     }
 
     func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController) {
@@ -339,13 +351,11 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }
 
     func dashboardViewController(_ controller: DashboardViewController, didChangeScale scale: Double) {
-        SettingsManager.shared.scale = scale
-        overlayWindowController?.updateScale()
+        companionManager.updateSelectedScale(scale)
     }
 
     func dashboardViewController(_ controller: DashboardViewController, didChangeOpacity opacity: Double) {
-        SettingsManager.shared.opacity = opacity
-        overlayWindowController?.updateOpacity()
+        companionManager.updateSelectedOpacity(opacity)
     }
 
     func dashboardViewControllerDidRequestSettings(_ controller: DashboardViewController) {

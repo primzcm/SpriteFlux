@@ -6,11 +6,12 @@ SpriteFlux is a native macOS menu bar overlay app that displays a floating anima
 - Transparent, borderless overlay window that stays on top of all windows and spaces
 - MP4/MOV playback via AVFoundation with smooth looping
 - GIF, PNG, JPG/JPEG, and WEBP image playback
+- Multiple active companions at once, each with its own window and position
 - Click-through mode so the overlay never blocks your workflow
 - Move mode to drag the overlay anywhere
 - Dashboard window that opens automatically on launch and can be reopened from the menu bar icon
 - Editable global hotkey for Move Mode, defaulting to Cmd + Shift + M
-- Persistent overlay state (position, file path, modes)
+- Persistent companion scene state (active companions, positions, and controls)
 - Saved asset library with copied files, thumbnails, favorites, rename, and delete actions
 
 ## Requirements
@@ -34,15 +35,16 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 
 ## Dashboard Window
 - `Open…` Choose an MP4, MOV, GIF, PNG, JPG/JPEG, or WEBP file from disk.
+- `Active` Select which companion the controls apply to, or remove active companions from the scene.
 - `Move Mode` Enable dragging the overlay.
 - `Click-through` Enable or disable mouse passthrough.
 - `Reset Position` Move the overlay to the default center-right position.
-- `Library` Import assets into SpriteFlux, then load, favorite, rename, or delete them from the dashboard.
-- `Drag and drop` Drop a supported file onto the dashboard to import it into the library and load it immediately.
+- `Library` Import assets into SpriteFlux, then add them into the scene, favorite them, rename them, or delete them from the dashboard.
+- `Drag and drop` Drop a supported file onto the dashboard to import it into the library and add it as a new companion immediately.
 - `Shortcuts…` Open the shortcuts view, edit the Toggle Move Mode hotkey, or go back to the dashboard.
 - `Hide Dashboard` Close the dashboard without quitting SpriteFlux.
 - `Quit` Exit SpriteFlux.
-- The dashboard shows the loaded animation filename plus live Scale/Opacity values.
+- The dashboard shows the selected companion plus live Scale/Opacity values for that companion.
 
 ## Right-Click Menu
 - `Show Dashboard` or `Hide Dashboard` Toggle the dashboard window.
@@ -53,4 +55,4 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 - `Quit` Exit SpriteFlux.
 
 ## Load Assets
-Use the dashboard action `Open…`, drag a file onto the dashboard, or use `Library`. Imported assets are copied into SpriteFlux's Application Support folder so the library keeps working even if the original file moves. SpriteFlux currently supports `.mp4`, `.mov`, `.gif`, `.png`, `.jpg`, `.jpeg`, and `.webp` assets. The overlay will resize to fit the media automatically.
+Use the dashboard action `Open…`, drag a file onto the dashboard, or use `Library`. Imported assets are copied into SpriteFlux's Application Support folder so the library keeps working even if the original file moves. SpriteFlux currently supports `.mp4`, `.mov`, `.gif`, `.png`, `.jpg`, `.jpeg`, and `.webp` assets. Each imported asset can be added to the scene as its own companion window, and the current scene is restored on launch.
