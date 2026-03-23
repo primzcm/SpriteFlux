@@ -79,6 +79,7 @@ final class OverlayWindowController: NSWindowController {
 
         currentMediaSize = size
         settings.lastFileURL = url
+        settings.registerRecentFile(url)
         resizeWindow()
         postStateDidChange()
         return true

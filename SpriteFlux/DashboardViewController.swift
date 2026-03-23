@@ -1,8 +1,16 @@
 import Cocoa
 
+struct DashboardRecentAsset {
+    let name: String
+    let url: URL
+    let formatLabel: String
+    let isCurrent: Bool
+}
+
 struct DashboardState {
     let currentFileName: String?
     let currentFileURL: URL?
+    let recentAssets: [DashboardRecentAsset]
     let moveModeEnabled: Bool
     let clickThroughEnabled: Bool
     let scale: Double
@@ -11,6 +19,7 @@ struct DashboardState {
 
 protocol DashboardViewControllerDelegate: AnyObject {
     func dashboardViewControllerDidRequestOpenAnimation(_ controller: DashboardViewController)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadAsset url: URL)
     func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController)
     func dashboardViewControllerDidToggleClickThrough(_ controller: DashboardViewController)
     func dashboardViewControllerDidRequestResetPosition(_ controller: DashboardViewController)
@@ -19,6 +28,63 @@ protocol DashboardViewControllerDelegate: AnyObject {
     func dashboardViewController(_ controller: DashboardViewController, didChangeScale scale: Double)
     func dashboardViewController(_ controller: DashboardViewController, didChangeOpacity opacity: Double)
     func dashboardViewControllerDidRequestSettings(_ controller: DashboardViewController)
+}
+
+private final class DashboardDropView: NSVisualEffectView {
+    var onFileDrop: ((URL) -> Void)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+        wantsLayer = true
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard firstDroppedFile(from: sender) != nil else {
+            return []
+        }
+
+        layer?.borderWidth = 2
+        layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.65).cgColor
+        layer?.cornerRadius = 20
+        return .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        clearDropHighlight()
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        defer { clearDropHighlight() }
+
+        guard let url = firstDroppedFile(from: sender) else {
+            return false
+        }
+
+        onFileDrop?(url)
+        return true
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        clearDropHighlight()
+    }
+
+    private func firstDroppedFile(from draggingInfo: NSDraggingInfo) -> URL? {
+        let classes: [AnyClass] = [NSURL.self]
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        return draggingInfo.draggingPasteboard.readObjects(forClasses: classes, options: options)?.first as? URL
+    }
+
+    private func clearDropHighlight() {
+        layer?.borderWidth = 0
+        layer?.borderColor = nil
+    }
 }
 
 final class DashboardViewController: NSViewController {
@@ -34,15 +100,23 @@ final class DashboardViewController: NSViewController {
     private let fileNameLabel = NSTextField(labelWithString: "")
     private let scaleValueLabel = NSTextField(labelWithString: "")
     private let opacityValueLabel = NSTextField(labelWithString: "")
+    private let recentAssetsStack = NSStackView()
+    private let recentAssetsEmptyLabel = NSTextField(labelWithString: "No recent assets yet")
 
     override func loadView() {
-        let visualEffectView = NSVisualEffectView()
+        let visualEffectView = DashboardDropView()
         visualEffectView.material = .popover
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.state = .active
+        visualEffectView.onFileDrop = { [weak self] url in
+            guard let self = self else {
+                return
+            }
+            self.delegate?.dashboardViewController(self, didRequestLoadAsset: url)
+        }
         self.view = visualEffectView
 
-        preferredContentSize = NSSize(width: 330, height: 490)
+        preferredContentSize = NSSize(width: 330, height: 660)
 
         // 1. Header & Preview
         let titleLabel = NSTextField(labelWithString: "SpriteFlux")
@@ -127,12 +201,33 @@ final class DashboardViewController: NSViewController {
 
         let slidersSection = DashboardViewController.makeSection(arrangedSubviews: [scaleStack, opacityStack])
 
-        // 4. Actions
+        // 4. Library
+        let libraryTitleLabel = NSTextField(labelWithString: "Library")
+        libraryTitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+
+        let libraryHintLabel = NSTextField(labelWithString: "Drop MP4, MOV, GIF, PNG, JPG, or WEBP here, or reopen a recent asset.")
+        libraryHintLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        libraryHintLabel.textColor = .secondaryLabelColor
+        libraryHintLabel.lineBreakMode = .byWordWrapping
+        libraryHintLabel.maximumNumberOfLines = 2
+
+        recentAssetsStack.orientation = .vertical
+        recentAssetsStack.alignment = .leading
+        recentAssetsStack.spacing = 8
+
+        recentAssetsEmptyLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        recentAssetsEmptyLabel.textColor = .tertiaryLabelColor
+
+        let librarySection = DashboardViewController.makeSection(
+            arrangedSubviews: [libraryTitleLabel, libraryHintLabel, recentAssetsStack]
+        )
+
+        // 5. Actions
         let openButton = NSButton(title: "Open…", target: self, action: #selector(openAnimationFile))
         openButton.bezelStyle = .rounded
         openButton.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
         openButton.imagePosition = .imageLeading
-        openButton.toolTip = "Open an animation (MP4, MOV, GIF)"
+        openButton.toolTip = "Open an asset from disk"
         
         let resetButton = NSButton(title: "Reset Position", target: self, action: #selector(resetPosition))
         resetButton.bezelStyle = .rounded
@@ -153,7 +248,7 @@ final class DashboardViewController: NSViewController {
 
         let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow, optionsButton])
 
-        // 5. Footer
+        // 6. Footer
         let hideButton = NSButton(image: NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "Hide Dashboard")!, target: self, action: #selector(hideDashboard))
         hideButton.isBordered = false
         hideButton.contentTintColor = .secondaryLabelColor
@@ -171,7 +266,7 @@ final class DashboardViewController: NSViewController {
         footerStack.addView(quitButton, in: .trailing)
 
         // Assembly
-        let contentStack = NSStackView(views: [headerStack, togglesSection, slidersSection, actionsSection, footerStack])
+        let contentStack = NSStackView(views: [headerStack, togglesSection, slidersSection, librarySection, actionsSection, footerStack])
         contentStack.orientation = .vertical
         contentStack.alignment = .leading
         contentStack.spacing = 16
@@ -180,6 +275,7 @@ final class DashboardViewController: NSViewController {
         headerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         togglesSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         slidersSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        librarySection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         actionsSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         footerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
 
@@ -218,6 +314,8 @@ final class DashboardViewController: NSViewController {
             fileNameLabel.stringValue = "No animation loaded"
             fileNameLabel.textColor = .tertiaryLabelColor
         }
+
+        reloadRecentAssets(state.recentAssets)
     }
 
     @objc private func scaleChanged() {
@@ -232,6 +330,15 @@ final class DashboardViewController: NSViewController {
 
     @objc private func openAnimationFile() {
         delegate?.dashboardViewControllerDidRequestOpenAnimation(self)
+    }
+
+    @objc private func openRecentAsset(_ sender: NSButton) {
+        guard let path = sender.identifier?.rawValue else {
+            return
+        }
+
+        let url = URL(fileURLWithPath: path)
+        delegate?.dashboardViewController(self, didRequestLoadAsset: url)
     }
 
     @objc private func openOptions() {
@@ -339,6 +446,34 @@ final class DashboardViewController: NSViewController {
         ])
 
         return box
+    }
+
+    private func reloadRecentAssets(_ assets: [DashboardRecentAsset]) {
+        recentAssetsStack.arrangedSubviews.forEach { view in
+            recentAssetsStack.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+
+        guard assets.isEmpty == false else {
+            recentAssetsStack.addArrangedSubview(recentAssetsEmptyLabel)
+            return
+        }
+
+        for asset in assets {
+            recentAssetsStack.addArrangedSubview(makeRecentAssetButton(for: asset))
+        }
+    }
+
+    private func makeRecentAssetButton(for asset: DashboardRecentAsset) -> NSButton {
+        let button = NSButton(title: "\(asset.name)  \(asset.formatLabel)", target: self, action: #selector(openRecentAsset(_:)))
+        button.identifier = NSUserInterfaceItemIdentifier(asset.url.path)
+        button.bezelStyle = .rounded
+        button.image = NSImage(systemSymbolName: asset.isCurrent ? "checkmark.circle.fill" : "clock.arrow.circlepath", accessibilityDescription: nil)
+        button.imagePosition = .imageLeading
+        button.contentTintColor = asset.isCurrent ? .controlAccentColor : .secondaryLabelColor
+        button.cell?.lineBreakMode = .byTruncatingMiddle
+        button.toolTip = asset.url.path
+        return button
     }
 
     private func updateScaleValueLabel(with scale: Double) {

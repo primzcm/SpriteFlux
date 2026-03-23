@@ -1,16 +1,17 @@
 # SpriteFlux
 
-SpriteFlux is a native macOS menu bar overlay app that displays a floating animated character on top of all windows. It supports looping video (MP4/MOV) and GIF playback with click-through and move modes.
+SpriteFlux is a native macOS menu bar overlay app that displays a floating animated character on top of all windows. It supports looping video plus common image formats with click-through and move modes.
 
 ## Features
 - Transparent, borderless overlay window that stays on top of all windows and spaces
 - MP4/MOV playback via AVFoundation with smooth looping
-- GIF playback fallback
+- GIF, PNG, JPG/JPEG, and WEBP image playback
 - Click-through mode so the overlay never blocks your workflow
 - Move mode to drag the overlay anywhere
 - Dashboard window that opens automatically on launch and can be reopened from the menu bar icon
 - Editable global hotkey for Move Mode, defaulting to Cmd + Shift + M
 - Persistent overlay state (position, file path, modes)
+- Recent asset library for quick reloading from the dashboard
 
 ## Requirements
 - macOS 12.0 or later
@@ -22,6 +23,7 @@ SpriteFlux is a native macOS menu bar overlay app that displays a floating anima
 3. Build and run.
 
 The repo includes a `.gitignore` that excludes common local Xcode artifacts (like `DerivedData` and `xcuserdata`).
+The Xcode project also enables a small reviewed subset of current recommended build settings rather than applying Xcode's full automatic migration blindly.
 
 The app runs as a menu bar agent (no Dock icon). The dashboard window opens automatically when SpriteFlux launches. After you hide it, left-click the sparkles icon in the menu bar to show or hide it again (falls back to `SF` if symbols are unavailable). Right-click the icon for quick actions, including Move Mode and Click-through toggles.
 
@@ -31,10 +33,12 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 - The shortcuts view renders modifier keys using native macOS symbols like `⌘` and `⇧`.
 
 ## Dashboard Window
-- `Open…` Choose an MP4, MOV, or GIF from disk.
+- `Open…` Choose an MP4, MOV, GIF, PNG, JPG/JPEG, or WEBP file from disk.
 - `Move Mode` Enable dragging the overlay.
 - `Click-through` Enable or disable mouse passthrough.
 - `Reset Position` Move the overlay to the default center-right position.
+- `Library` Reopen recent assets directly from the dashboard.
+- `Drag and drop` Drop a supported file onto the dashboard to load it immediately.
 - `Shortcuts…` Open the shortcuts view, edit the Toggle Move Mode hotkey, or go back to the dashboard.
 - `Hide Dashboard` Close the dashboard without quitting SpriteFlux.
 - `Quit` Exit SpriteFlux.
@@ -48,5 +52,5 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 - `Reset Position` Move the overlay to the default center-right position.
 - `Quit` Exit SpriteFlux.
 
-## Load GIF Or Video
-Use the dashboard action `Open Animation File...` and select a `.gif`, `.mp4`, or `.mov` file. The overlay will resize to fit the media and loop automatically.
+## Load Assets
+Use the dashboard action `Open…`, drag a file onto the dashboard, or reopen an entry from `Library`. SpriteFlux currently supports `.mp4`, `.mov`, `.gif`, `.png`, `.jpg`, `.jpeg`, and `.webp` assets. The overlay will resize to fit the media automatically.

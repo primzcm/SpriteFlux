@@ -2,6 +2,20 @@ import Cocoa
 import UniformTypeIdentifiers
 
 final class MenuBarController: NSObject, DashboardViewControllerDelegate {
+    private static let supportedContentTypes: [UTType] = {
+        var types: [UTType] = [.mpeg4Movie, .quickTimeMovie, .gif, .png, .jpeg]
+
+        if let jpg = UTType(filenameExtension: "jpg") {
+            types.append(jpg)
+        }
+
+        if let webp = UTType(filenameExtension: "webp") {
+            types.append(webp)
+        }
+
+        return types
+    }()
+
     private let statusItem: NSStatusItem
     private weak var overlayWindowController: OverlayWindowController?
     private let dashboardViewController: DashboardViewController
@@ -131,7 +145,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .gif]
+        panel.allowedContentTypes = Self.supportedContentTypes
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -141,13 +155,10 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
                 return
             }
 
-            guard let overlay = self.overlayWindowController,
-                  overlay.loadMedia(url: url) else {
+            guard self.loadAsset(url: url) else {
                 self.showLoadFailedAlert()
                 return
             }
-
-            self.updateDashboardState()
         }
     }
 
@@ -190,9 +201,19 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
             return
         }
 
+        let recentAssets = SettingsManager.shared.recentFileURLs.map { url in
+            DashboardRecentAsset(
+                name: url.deletingPathExtension().lastPathComponent,
+                url: url,
+                formatLabel: url.pathExtension.uppercased(),
+                isCurrent: url == overlay.currentMediaURL
+            )
+        }
+
         let state = DashboardState(
             currentFileName: overlay.currentMediaURL?.lastPathComponent,
             currentFileURL: overlay.currentMediaURL,
+            recentAssets: recentAssets,
             moveModeEnabled: overlay.isMoveModeEnabled,
             clickThroughEnabled: overlay.clickThroughEnabled,
             scale: SettingsManager.shared.scale,
@@ -211,15 +232,33 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     private func showLoadFailedAlert() {
         let alert = NSAlert()
         alert.messageText = "Unable to Load File"
-        alert.informativeText = "SpriteFlux supports MP4, MOV, and GIF files."
+        alert.informativeText = "SpriteFlux supports MP4, MOV, GIF, PNG, JPG, JPEG, and WEBP files."
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    @discardableResult
+    private func loadAsset(url: URL) -> Bool {
+        guard let overlay = overlayWindowController,
+              overlay.loadMedia(url: url) else {
+            return false
+        }
+
+        updateDashboardState()
+        return true
     }
 
     // MARK: - DashboardViewControllerDelegate
 
     func dashboardViewControllerDidRequestOpenAnimation(_ controller: DashboardViewController) {
         openAnimationFile()
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadAsset url: URL) {
+        guard loadAsset(url: url) else {
+            showLoadFailedAlert()
+            return
+        }
     }
 
     func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController) {

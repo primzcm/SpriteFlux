@@ -33,6 +33,13 @@ final class OverlayView: NSView {
             return size
         }
 
+        if ["png", "jpg", "jpeg", "webp"].contains(ext) {
+            let view = GIFPlayerView()
+            let size = view.load(url: url)
+            setContentView(view)
+            return size
+        }
+
         return nil
     }
 

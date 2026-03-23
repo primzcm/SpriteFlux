@@ -17,8 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         HotkeyManager.shared.register()
 
-        if let url = SettingsManager.shared.lastFileURL {
-            overlay.loadMedia(url: url)
+        if let url = SettingsManager.shared.lastFileURL,
+           overlay.loadMedia(url: url) == false {
+            SettingsManager.shared.lastFileURL = nil
         }
 
         menuBarController?.showDashboardWindow()

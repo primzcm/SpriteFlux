@@ -5,6 +5,7 @@ final class SettingsManager {
 
     private enum Keys {
         static let lastFilePath = "lastFilePath"
+        static let recentFilePaths = "recentFilePaths"
         static let lastWindowOriginX = "lastWindowOriginX"
         static let lastWindowOriginY = "lastWindowOriginY"
         static let clickThroughEnabled = "clickThroughEnabled"
@@ -16,6 +17,7 @@ final class SettingsManager {
     }
 
     private let defaults = UserDefaults.standard
+    private let maxRecentFiles = 6
 
     var lastFileURL: URL? {
         get {
@@ -31,6 +33,18 @@ final class SettingsManager {
                 defaults.removeObject(forKey: Keys.lastFilePath)
             }
         }
+    }
+
+    var recentFileURLs: [URL] {
+        let storedPaths = defaults.stringArray(forKey: Keys.recentFilePaths) ?? []
+        let uniquePaths = Array(NSOrderedSet(array: storedPaths)) as? [String] ?? []
+        let existingPaths = uniquePaths.filter { FileManager.default.fileExists(atPath: $0) }
+
+        if existingPaths != storedPaths {
+            defaults.set(existingPaths, forKey: Keys.recentFilePaths)
+        }
+
+        return existingPaths.map(URL.init(fileURLWithPath:))
     }
 
     var lastWindowOrigin: NSPoint? {
@@ -118,5 +132,17 @@ final class SettingsManager {
             defaults.set(Int(newValue.keyCode), forKey: Keys.moveModeHotkeyKeyCode)
             defaults.set(Int(newValue.modifiers), forKey: Keys.moveModeHotkeyModifiers)
         }
+    }
+
+    func registerRecentFile(_ url: URL) {
+        var paths = recentFileURLs.map(\.path)
+        paths.removeAll { $0 == url.path }
+        paths.insert(url.path, at: 0)
+
+        if paths.count > maxRecentFiles {
+            paths = Array(paths.prefix(maxRecentFiles))
+        }
+
+        defaults.set(paths, forKey: Keys.recentFilePaths)
     }
 }
