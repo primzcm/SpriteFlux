@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Xcode / Swift
+DerivedData/
+build/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcresult
+*.xccovreport
+*.xccovarchive
+*.xcuserstate
+*.moved-aside
+
+# Xcode user-specific settings
+**/xcuserdata/
+**/IDEWorkspaceChecks.plist
+**/WorkspaceSettings.xcsettings
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+
+# Environment files
+.env
+.env.*

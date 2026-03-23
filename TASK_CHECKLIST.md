@@ -23,6 +23,8 @@ DONE
 - Refined the shortcuts layout with a centered heading and better-aligned recorder control.
 - Restored the shortcut recorder label to its earlier font size after switching to symbol rendering.
 - Rendered recorded shortcuts with macOS modifier symbols inside a monospaced shortcut label.
+- Polished the dashboard with a loaded-file label, slider value readouts, and clearer labeled actions.
+- Added `.gitignore` and removed tracked Xcode `xcuserdata` state files.
 
 IN-PROGRESS
 

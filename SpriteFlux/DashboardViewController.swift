@@ -28,9 +28,12 @@ final class DashboardViewController: NSViewController {
     private let clickThroughSwitch = NSSwitch()
     private let scaleSlider = NSSlider(value: 1.0, minValue: 0.5, maxValue: 2.0, target: nil, action: nil)
     private let opacitySlider = NSSlider(value: 1.0, minValue: 0.1, maxValue: 1.0, target: nil, action: nil)
-    
+
     private let thumbnailView = OverlayView()
     private var loadedFileURL: URL?
+    private let fileNameLabel = NSTextField(labelWithString: "")
+    private let scaleValueLabel = NSTextField(labelWithString: "")
+    private let opacityValueLabel = NSTextField(labelWithString: "")
 
     override func loadView() {
         let visualEffectView = NSVisualEffectView()
@@ -65,10 +68,17 @@ final class DashboardViewController: NSViewController {
             thumbnailView.heightAnchor.constraint(equalTo: thumbnailContainer.heightAnchor)
         ])
 
-        let headerStack = NSStackView(views: [titleLabel, thumbnailContainer])
+        fileNameLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        fileNameLabel.textColor = .tertiaryLabelColor
+        fileNameLabel.alignment = .center
+        fileNameLabel.lineBreakMode = .byTruncatingMiddle
+        fileNameLabel.maximumNumberOfLines = 1
+        fileNameLabel.stringValue = "No animation loaded"
+
+        let headerStack = NSStackView(views: [titleLabel, thumbnailContainer, fileNameLabel])
         headerStack.orientation = .vertical
         headerStack.alignment = .centerX
-        headerStack.spacing = 16
+        headerStack.spacing = 12
 
         // 2. Toggles Section
         moveModeSwitch.target = self
@@ -90,28 +100,56 @@ final class DashboardViewController: NSViewController {
         scaleSlider.isContinuous = true
         opacitySlider.isContinuous = true
 
-        let scaleStack = DashboardViewController.makeSliderRow(title: "Scale", icon: "arrow.up.left.and.down.right.and.arrow.up.right.and.down.left", slider: scaleSlider)
-        let opacityStack = DashboardViewController.makeSliderRow(title: "Opacity", icon: "circle.lefthalf.filled", slider: opacitySlider)
-        
+        scaleValueLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        scaleValueLabel.textColor = .secondaryLabelColor
+        scaleValueLabel.alignment = .right
+        scaleValueLabel.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        updateScaleValueLabel(with: scaleSlider.doubleValue)
+
+        opacityValueLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        opacityValueLabel.textColor = .secondaryLabelColor
+        opacityValueLabel.alignment = .right
+        opacityValueLabel.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        updateOpacityValueLabel(with: opacitySlider.doubleValue)
+
+        let scaleStack = DashboardViewController.makeSliderRow(
+            title: "Scale",
+            icon: "arrow.up.left.and.down.right.and.arrow.up.right.and.down.left",
+            slider: scaleSlider,
+            valueLabel: scaleValueLabel
+        )
+        let opacityStack = DashboardViewController.makeSliderRow(
+            title: "Opacity",
+            icon: "circle.lefthalf.filled",
+            slider: opacitySlider,
+            valueLabel: opacityValueLabel
+        )
+
         let slidersSection = DashboardViewController.makeSection(arrangedSubviews: [scaleStack, opacityStack])
 
         // 4. Actions
-        let openButton = NSButton(title: " Open File", target: self, action: #selector(openAnimationFile))
+        let openButton = NSButton(title: "Open…", target: self, action: #selector(openAnimationFile))
         openButton.bezelStyle = .rounded
         openButton.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+        openButton.imagePosition = .imageLeading
+        openButton.toolTip = "Open an animation (MP4, MOV, GIF)"
         
-        let resetButton = NSButton(title: " Reset Position", target: self, action: #selector(resetPosition))
+        let resetButton = NSButton(title: "Reset Position", target: self, action: #selector(resetPosition))
         resetButton.bezelStyle = .rounded
         resetButton.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
+        resetButton.imagePosition = .imageLeading
+        resetButton.toolTip = "Reset overlay position"
 
         let buttonRow = NSStackView(views: [openButton, resetButton])
         buttonRow.orientation = .horizontal
         buttonRow.distribution = .fillEqually
         buttonRow.spacing = 10
 
-        let optionsButton = NSButton(title: " Options", target: self, action: #selector(openOptions))
+        let optionsButton = NSButton(title: "Shortcuts…", target: self, action: #selector(openOptions))
         optionsButton.bezelStyle = .rounded
         optionsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+        optionsButton.imagePosition = .imageLeading
+        optionsButton.toolTip = "Edit keyboard shortcuts"
 
         let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow, optionsButton])
 
@@ -119,10 +157,12 @@ final class DashboardViewController: NSViewController {
         let hideButton = NSButton(image: NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "Hide Dashboard")!, target: self, action: #selector(hideDashboard))
         hideButton.isBordered = false
         hideButton.contentTintColor = .secondaryLabelColor
+        hideButton.toolTip = "Hide Dashboard"
 
         let quitButton = NSButton(image: NSImage(systemSymbolName: "power", accessibilityDescription: "Quit Application")!, target: self, action: #selector(quitApp))
         quitButton.isBordered = false
         quitButton.contentTintColor = .secondaryLabelColor
+        quitButton.toolTip = "Quit SpriteFlux"
 
         let footerStack = NSStackView(views: [hideButton, quitButton])
         footerStack.orientation = .horizontal
@@ -159,22 +199,34 @@ final class DashboardViewController: NSViewController {
         
         if scaleSlider.doubleValue != state.scale {
             scaleSlider.doubleValue = state.scale
+            updateScaleValueLabel(with: state.scale)
         }
         if opacitySlider.doubleValue != state.opacity {
             opacitySlider.doubleValue = state.opacity
+            updateOpacityValueLabel(with: state.opacity)
         }
 
         if let url = state.currentFileURL, url != loadedFileURL {
              loadedFileURL = url
              _ = thumbnailView.loadMedia(url: url)
         }
+
+        if let name = state.currentFileName, !name.isEmpty {
+            fileNameLabel.stringValue = name
+            fileNameLabel.textColor = .secondaryLabelColor
+        } else {
+            fileNameLabel.stringValue = "No animation loaded"
+            fileNameLabel.textColor = .tertiaryLabelColor
+        }
     }
 
     @objc private func scaleChanged() {
+        updateScaleValueLabel(with: scaleSlider.doubleValue)
         delegate?.dashboardViewController(self, didChangeScale: scaleSlider.doubleValue)
     }
 
     @objc private func opacityChanged() {
+        updateOpacityValueLabel(with: opacitySlider.doubleValue)
         delegate?.dashboardViewController(self, didChangeOpacity: opacitySlider.doubleValue)
     }
 
@@ -226,7 +278,7 @@ final class DashboardViewController: NSViewController {
         return rowStack
     }
 
-    private static func makeSliderRow(title: String, icon: String, slider: NSSlider) -> NSStackView {
+    private static func makeSliderRow(title: String, icon: String, slider: NSSlider, valueLabel: NSTextField) -> NSStackView {
         let iconView = makeIcon(symbolName: icon, tint: .labelColor)
         
         let label = NSTextField(labelWithString: title)
@@ -238,11 +290,12 @@ final class DashboardViewController: NSViewController {
         leftStack.alignment = .centerY
         leftStack.spacing = 8
 
-        let rowStack = NSStackView(views: [leftStack, slider])
+        let rowStack = NSStackView(views: [leftStack, slider, valueLabel])
         rowStack.orientation = .horizontal
         rowStack.alignment = .centerY
         rowStack.spacing = 10
         slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        valueLabel.setContentHuggingPriority(.required, for: .horizontal)
 
         return rowStack
     }
@@ -286,5 +339,15 @@ final class DashboardViewController: NSViewController {
         ])
 
         return box
+    }
+
+    private func updateScaleValueLabel(with scale: Double) {
+        let percentValue = Int((scale * 100.0).rounded())
+        scaleValueLabel.stringValue = "\(percentValue)%"
+    }
+
+    private func updateOpacityValueLabel(with opacity: Double) {
+        let percentValue = Int((opacity * 100.0).rounded())
+        opacityValueLabel.stringValue = "\(percentValue)%"
     }
 }

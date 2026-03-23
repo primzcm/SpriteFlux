@@ -21,21 +21,24 @@ SpriteFlux is a native macOS menu bar overlay app that displays a floating anima
 2. Select the `SpriteFlux` scheme.
 3. Build and run.
 
+The repo includes a `.gitignore` that excludes common local Xcode artifacts (like `DerivedData` and `xcuserdata`).
+
 The app runs as a menu bar agent (no Dock icon). The dashboard window opens automatically when SpriteFlux launches. After you hide it, left-click the sparkles icon in the menu bar to show or hide it again (falls back to `SF` if symbols are unavailable). Right-click the icon for quick actions, including Move Mode and Click-through toggles.
 
 ## Hotkeys
-- Toggle Move Mode: configurable from Dashboard -> Options
+- Toggle Move Mode: configurable from Dashboard -> Shortcuts…
 - Default Move Mode shortcut: Cmd + Shift + M
 - The shortcuts view renders modifier keys using native macOS symbols like `⌘` and `⇧`.
 
 ## Dashboard Window
-- `Open Animation File...` Choose an MP4, MOV, or GIF from disk.
+- `Open…` Choose an MP4, MOV, or GIF from disk.
 - `Move Mode` Enable dragging the overlay.
 - `Click-through` Enable or disable mouse passthrough.
 - `Reset Position` Move the overlay to the default center-right position.
-- `Options` Open the shortcuts view, edit the Toggle Move Mode hotkey, or go back to the dashboard.
+- `Shortcuts…` Open the shortcuts view, edit the Toggle Move Mode hotkey, or go back to the dashboard.
 - `Hide Dashboard` Close the dashboard without quitting SpriteFlux.
 - `Quit` Exit SpriteFlux.
+- The dashboard shows the loaded animation filename plus live Scale/Opacity values.
 
 ## Right-Click Menu
 - `Show Dashboard` or `Hide Dashboard` Toggle the dashboard window.
