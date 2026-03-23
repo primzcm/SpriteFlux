@@ -77,7 +77,7 @@ final class DashboardViewController: NSViewController {
 
         clickThroughSwitch.target = self
         clickThroughSwitch.action = #selector(toggleClickThrough)
-        let clickThroughRow = DashboardViewController.makeSwitchRow(title: "Ignore Clicks", icon: "cursorarrow.click", toggle: clickThroughSwitch)
+        let clickThroughRow = DashboardViewController.makeSwitchRow(title: "Click-through", icon: "cursorarrow.click", toggle: clickThroughSwitch)
 
         let togglesSection = DashboardViewController.makeSection(arrangedSubviews: [moveModeRow, clickThroughRow])
 
@@ -112,18 +112,18 @@ final class DashboardViewController: NSViewController {
         let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow])
 
         // 5. Footer
-        let settingsButton = NSButton(image: NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)!, target: self, action: #selector(openSettings))
-        settingsButton.isBordered = false
-        settingsButton.contentTintColor = .secondaryLabelColor
+        let hideButton = NSButton(image: NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "Hide Dashboard")!, target: self, action: #selector(hideDashboard))
+        hideButton.isBordered = false
+        hideButton.contentTintColor = .secondaryLabelColor
 
-        let quitButton = NSButton(image: NSImage(systemSymbolName: "power", accessibilityDescription: nil)!, target: self, action: #selector(quitApp))
+        let quitButton = NSButton(image: NSImage(systemSymbolName: "power", accessibilityDescription: "Quit Application")!, target: self, action: #selector(quitApp))
         quitButton.isBordered = false
         quitButton.contentTintColor = .secondaryLabelColor
 
-        let footerStack = NSStackView(views: [settingsButton, quitButton])
+        let footerStack = NSStackView(views: [hideButton, quitButton])
         footerStack.orientation = .horizontal
         footerStack.distribution = .gravityAreas
-        footerStack.addView(settingsButton, in: .leading)
+        footerStack.addView(hideButton, in: .leading)
         footerStack.addView(quitButton, in: .trailing)
 
         // Assembly
@@ -190,8 +190,8 @@ final class DashboardViewController: NSViewController {
         delegate?.dashboardViewControllerDidRequestResetPosition(self)
     }
 
-    @objc private func openSettings() {
-        delegate?.dashboardViewControllerDidRequestSettings(self)
+    @objc private func hideDashboard() {
+        delegate?.dashboardViewControllerDidRequestHide(self)
     }
 
     @objc private func quitApp() {
