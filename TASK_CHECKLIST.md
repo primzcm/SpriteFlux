@@ -26,10 +26,11 @@ DONE
 - Polished the dashboard with a loaded-file label, slider value readouts, and clearer labeled actions.
 - Added `.gitignore` and removed tracked Xcode `xcuserdata` state files.
 - Expanded asset support to include PNG, JPG/JPEG, and WEBP files alongside video and GIF.
-- Added a recent asset library plus drag-and-drop loading in the dashboard.
+- Added a file-backed asset library with copied assets, thumbnails, and dashboard management actions.
+- Added drag-and-drop import into the asset library from the dashboard.
 - Reviewed Xcode's recommended settings and applied the safe subset in the project file.
 
 IN-PROGRESS
 
 TODO
-- Optional settings expansion for additional shortcut actions, dashboard preferences, and richer asset controls.
+- Optional settings expansion for additional shortcut actions, dashboard preferences, richer asset controls, and multi-character scenes.

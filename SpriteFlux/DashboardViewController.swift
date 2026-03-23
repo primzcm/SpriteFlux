@@ -1,16 +1,19 @@
 import Cocoa
 
-struct DashboardRecentAsset {
+struct DashboardLibraryAsset {
+    let id: String
     let name: String
-    let url: URL
     let formatLabel: String
+    let thumbnailURL: URL?
+    let sourceFileName: String
+    let isFavorite: Bool
     let isCurrent: Bool
 }
 
 struct DashboardState {
     let currentFileName: String?
     let currentFileURL: URL?
-    let recentAssets: [DashboardRecentAsset]
+    let libraryAssets: [DashboardLibraryAsset]
     let moveModeEnabled: Bool
     let clickThroughEnabled: Bool
     let scale: Double
@@ -19,7 +22,11 @@ struct DashboardState {
 
 protocol DashboardViewControllerDelegate: AnyObject {
     func dashboardViewControllerDidRequestOpenAnimation(_ controller: DashboardViewController)
-    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadAsset url: URL)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestImportAsset url: URL)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadLibraryAsset id: String)
+    func dashboardViewController(_ controller: DashboardViewController, didToggleFavoriteLibraryAsset id: String)
+    func dashboardViewController(_ controller: DashboardViewController, didRenameLibraryAsset id: String, to newName: String)
+    func dashboardViewController(_ controller: DashboardViewController, didDeleteLibraryAsset id: String)
     func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController)
     func dashboardViewControllerDidToggleClickThrough(_ controller: DashboardViewController)
     func dashboardViewControllerDidRequestResetPosition(_ controller: DashboardViewController)
@@ -102,6 +109,7 @@ final class DashboardViewController: NSViewController {
     private let opacityValueLabel = NSTextField(labelWithString: "")
     private let recentAssetsStack = NSStackView()
     private let recentAssetsEmptyLabel = NSTextField(labelWithString: "No recent assets yet")
+    private let libraryScrollView = NSScrollView()
 
     override func loadView() {
         let visualEffectView = DashboardDropView()
@@ -112,11 +120,11 @@ final class DashboardViewController: NSViewController {
             guard let self = self else {
                 return
             }
-            self.delegate?.dashboardViewController(self, didRequestLoadAsset: url)
+            self.delegate?.dashboardViewController(self, didRequestImportAsset: url)
         }
         self.view = visualEffectView
 
-        preferredContentSize = NSSize(width: 330, height: 660)
+        preferredContentSize = NSSize(width: 330, height: 600)
 
         // 1. Header & Preview
         let titleLabel = NSTextField(labelWithString: "SpriteFlux")
@@ -205,7 +213,7 @@ final class DashboardViewController: NSViewController {
         let libraryTitleLabel = NSTextField(labelWithString: "Library")
         libraryTitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
 
-        let libraryHintLabel = NSTextField(labelWithString: "Drop MP4, MOV, GIF, PNG, JPG, or WEBP here, or reopen a recent asset.")
+        let libraryHintLabel = NSTextField(labelWithString: "Drop a supported file here or load, favorite, rename, and delete saved assets.")
         libraryHintLabel.font = .systemFont(ofSize: 11, weight: .medium)
         libraryHintLabel.textColor = .secondaryLabelColor
         libraryHintLabel.lineBreakMode = .byWordWrapping
@@ -214,12 +222,36 @@ final class DashboardViewController: NSViewController {
         recentAssetsStack.orientation = .vertical
         recentAssetsStack.alignment = .leading
         recentAssetsStack.spacing = 8
+        recentAssetsStack.translatesAutoresizingMaskIntoConstraints = false
 
         recentAssetsEmptyLabel.font = .systemFont(ofSize: 12, weight: .medium)
         recentAssetsEmptyLabel.textColor = .tertiaryLabelColor
+        recentAssetsEmptyLabel.stringValue = "No saved assets yet"
+
+        let libraryDocumentView = NSView()
+        libraryDocumentView.translatesAutoresizingMaskIntoConstraints = false
+        libraryDocumentView.addSubview(recentAssetsStack)
+
+        NSLayoutConstraint.activate([
+            recentAssetsStack.leadingAnchor.constraint(equalTo: libraryDocumentView.leadingAnchor),
+            recentAssetsStack.trailingAnchor.constraint(equalTo: libraryDocumentView.trailingAnchor),
+            recentAssetsStack.topAnchor.constraint(equalTo: libraryDocumentView.topAnchor),
+            recentAssetsStack.bottomAnchor.constraint(equalTo: libraryDocumentView.bottomAnchor),
+            recentAssetsStack.widthAnchor.constraint(equalTo: libraryDocumentView.widthAnchor)
+        ])
+
+        libraryScrollView.translatesAutoresizingMaskIntoConstraints = false
+        libraryScrollView.drawsBackground = false
+        libraryScrollView.hasVerticalScroller = true
+        libraryScrollView.hasHorizontalScroller = false
+        libraryScrollView.autohidesScrollers = true
+        libraryScrollView.borderType = .noBorder
+        libraryScrollView.documentView = libraryDocumentView
+        libraryScrollView.contentView.postsBoundsChangedNotifications = true
+        libraryScrollView.heightAnchor.constraint(equalToConstant: 180).isActive = true
 
         let librarySection = DashboardViewController.makeSection(
-            arrangedSubviews: [libraryTitleLabel, libraryHintLabel, recentAssetsStack]
+            arrangedSubviews: [libraryTitleLabel, libraryHintLabel, libraryScrollView]
         )
 
         // 5. Actions
@@ -269,7 +301,7 @@ final class DashboardViewController: NSViewController {
         let contentStack = NSStackView(views: [headerStack, togglesSection, slidersSection, librarySection, actionsSection, footerStack])
         contentStack.orientation = .vertical
         contentStack.alignment = .leading
-        contentStack.spacing = 16
+        contentStack.spacing = 14
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
         headerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
@@ -279,13 +311,37 @@ final class DashboardViewController: NSViewController {
         actionsSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         footerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
 
-        visualEffectView.addSubview(contentStack)
+        let contentDocumentView = NSView()
+        contentDocumentView.translatesAutoresizingMaskIntoConstraints = false
+        contentDocumentView.addSubview(contentStack)
+
+        let dashboardScrollView = NSScrollView()
+        dashboardScrollView.translatesAutoresizingMaskIntoConstraints = false
+        dashboardScrollView.drawsBackground = false
+        dashboardScrollView.hasVerticalScroller = true
+        dashboardScrollView.hasHorizontalScroller = false
+        dashboardScrollView.autohidesScrollers = true
+        dashboardScrollView.borderType = .noBorder
+        dashboardScrollView.documentView = contentDocumentView
+
+        visualEffectView.addSubview(dashboardScrollView)
 
         NSLayoutConstraint.activate([
-            contentStack.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor, constant: 24),
-            contentStack.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor, constant: -24),
-            contentStack.topAnchor.constraint(equalTo: visualEffectView.topAnchor, constant: 36),
-            contentStack.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor, constant: -20)
+            dashboardScrollView.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+            dashboardScrollView.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+            dashboardScrollView.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
+            dashboardScrollView.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
+
+            contentDocumentView.leadingAnchor.constraint(equalTo: dashboardScrollView.contentView.leadingAnchor),
+            contentDocumentView.trailingAnchor.constraint(equalTo: dashboardScrollView.contentView.trailingAnchor),
+            contentDocumentView.topAnchor.constraint(equalTo: dashboardScrollView.contentView.topAnchor),
+            contentDocumentView.bottomAnchor.constraint(equalTo: dashboardScrollView.contentView.bottomAnchor),
+            contentDocumentView.widthAnchor.constraint(equalTo: dashboardScrollView.contentView.widthAnchor),
+
+            contentStack.leadingAnchor.constraint(equalTo: contentDocumentView.leadingAnchor, constant: 24),
+            contentStack.trailingAnchor.constraint(equalTo: contentDocumentView.trailingAnchor, constant: -24),
+            contentStack.topAnchor.constraint(equalTo: contentDocumentView.topAnchor, constant: 24),
+            contentStack.bottomAnchor.constraint(equalTo: contentDocumentView.bottomAnchor, constant: -16)
         ])
     }
 
@@ -315,7 +371,7 @@ final class DashboardViewController: NSViewController {
             fileNameLabel.textColor = .tertiaryLabelColor
         }
 
-        reloadRecentAssets(state.recentAssets)
+        reloadLibraryAssets(state.libraryAssets)
     }
 
     @objc private func scaleChanged() {
@@ -332,13 +388,60 @@ final class DashboardViewController: NSViewController {
         delegate?.dashboardViewControllerDidRequestOpenAnimation(self)
     }
 
-    @objc private func openRecentAsset(_ sender: NSButton) {
-        guard let path = sender.identifier?.rawValue else {
+    @objc private func loadLibraryAsset(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
             return
         }
 
-        let url = URL(fileURLWithPath: path)
-        delegate?.dashboardViewController(self, didRequestLoadAsset: url)
+        delegate?.dashboardViewController(self, didRequestLoadLibraryAsset: id)
+    }
+
+    @objc private func toggleFavoriteLibraryAsset(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didToggleFavoriteLibraryAsset: id)
+    }
+
+    @objc private func renameLibraryAsset(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Rename Asset"
+        alert.informativeText = "Choose a display name for this asset."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        textField.stringValue = currentLibraryAssetName(for: id)
+        alert.accessoryView = textField
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didRenameLibraryAsset: id, to: textField.stringValue)
+    }
+
+    @objc private func deleteLibraryAsset(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Delete Asset?"
+        alert.informativeText = "This removes the saved asset and its thumbnail from SpriteFlux."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didDeleteLibraryAsset: id)
     }
 
     @objc private func openOptions() {
@@ -448,7 +551,7 @@ final class DashboardViewController: NSViewController {
         return box
     }
 
-    private func reloadRecentAssets(_ assets: [DashboardRecentAsset]) {
+    private func reloadLibraryAssets(_ assets: [DashboardLibraryAsset]) {
         recentAssetsStack.arrangedSubviews.forEach { view in
             recentAssetsStack.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -460,20 +563,101 @@ final class DashboardViewController: NSViewController {
         }
 
         for asset in assets {
-            recentAssetsStack.addArrangedSubview(makeRecentAssetButton(for: asset))
+            recentAssetsStack.addArrangedSubview(makeLibraryAssetRow(for: asset))
         }
     }
 
-    private func makeRecentAssetButton(for asset: DashboardRecentAsset) -> NSButton {
-        let button = NSButton(title: "\(asset.name)  \(asset.formatLabel)", target: self, action: #selector(openRecentAsset(_:)))
-        button.identifier = NSUserInterfaceItemIdentifier(asset.url.path)
-        button.bezelStyle = .rounded
-        button.image = NSImage(systemSymbolName: asset.isCurrent ? "checkmark.circle.fill" : "clock.arrow.circlepath", accessibilityDescription: nil)
-        button.imagePosition = .imageLeading
-        button.contentTintColor = asset.isCurrent ? .controlAccentColor : .secondaryLabelColor
-        button.cell?.lineBreakMode = .byTruncatingMiddle
-        button.toolTip = asset.url.path
+    private func makeLibraryAssetRow(for asset: DashboardLibraryAsset) -> NSView {
+        let thumbnailImageView = NSImageView()
+        thumbnailImageView.translatesAutoresizingMaskIntoConstraints = false
+        thumbnailImageView.imageScaling = .scaleAxesIndependently
+        thumbnailImageView.wantsLayer = true
+        thumbnailImageView.layer?.cornerRadius = 8
+        thumbnailImageView.layer?.masksToBounds = true
+        thumbnailImageView.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        thumbnailImageView.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        thumbnailImageView.image = asset.thumbnailURL.flatMap(NSImage.init(contentsOf:)) ?? NSImage(systemSymbolName: "photo", accessibilityDescription: nil)
+
+        let nameLabel = NSTextField(labelWithString: asset.name)
+        nameLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        nameLabel.lineBreakMode = .byTruncatingTail
+        nameLabel.maximumNumberOfLines = 1
+
+        let detailLabel = NSTextField(labelWithString: "\(asset.formatLabel)  •  \(asset.sourceFileName)")
+        detailLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.lineBreakMode = .byTruncatingMiddle
+        detailLabel.maximumNumberOfLines = 1
+
+        let labelsStack = NSStackView(views: [nameLabel, detailLabel])
+        labelsStack.orientation = .vertical
+        labelsStack.alignment = .leading
+        labelsStack.spacing = 3
+
+        let loadButton = makeLibraryActionButton(
+            symbolName: asset.isCurrent ? "play.circle.fill" : "play.circle",
+            toolTip: asset.isCurrent ? "Currently loaded" : "Load asset",
+            id: asset.id,
+            action: #selector(loadLibraryAsset(_:))
+        )
+        loadButton.contentTintColor = asset.isCurrent ? .controlAccentColor : .secondaryLabelColor
+
+        let favoriteButton = makeLibraryActionButton(
+            symbolName: asset.isFavorite ? "star.fill" : "star",
+            toolTip: asset.isFavorite ? "Remove favorite" : "Favorite asset",
+            id: asset.id,
+            action: #selector(toggleFavoriteLibraryAsset(_:))
+        )
+        favoriteButton.contentTintColor = asset.isFavorite ? .systemYellow : .secondaryLabelColor
+
+        let renameButton = makeLibraryActionButton(
+            symbolName: "pencil",
+            toolTip: "Rename asset",
+            id: asset.id,
+            action: #selector(renameLibraryAsset(_:))
+        )
+
+        let deleteButton = makeLibraryActionButton(
+            symbolName: "trash",
+            toolTip: "Delete asset",
+            id: asset.id,
+            action: #selector(deleteLibraryAsset(_:))
+        )
+
+        let controlsStack = NSStackView(views: [loadButton, favoriteButton, renameButton, deleteButton])
+        controlsStack.orientation = .horizontal
+        controlsStack.alignment = .centerY
+        controlsStack.spacing = 4
+
+        let row = NSStackView(views: [thumbnailImageView, labelsStack, controlsStack])
+        row.identifier = NSUserInterfaceItemIdentifier(asset.id)
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 10
+        labelsStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        controlsStack.setContentHuggingPriority(.required, for: .horizontal)
+        return row
+    }
+
+    private func makeLibraryActionButton(symbolName: String, toolTip: String, id: String, action: Selector) -> NSButton {
+        let button = NSButton(image: NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) ?? NSImage(), target: self, action: action)
+        button.identifier = NSUserInterfaceItemIdentifier(id)
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.contentTintColor = .secondaryLabelColor
+        button.toolTip = toolTip
         return button
+    }
+
+    private func currentLibraryAssetName(for id: String) -> String {
+        guard let row = recentAssetsStack.arrangedSubviews.first(where: { $0.identifier?.rawValue == id }) as? NSStackView,
+              row.arrangedSubviews.count > 1,
+              let labelsStack = row.arrangedSubviews[1] as? NSStackView,
+              let nameLabel = labelsStack.arrangedSubviews.first as? NSTextField else {
+            return ""
+        }
+
+        return nameLabel.stringValue
     }
 
     private func updateScaleValueLabel(with scale: Double) {

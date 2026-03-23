@@ -18,6 +18,7 @@
 		CAA2C3D4E5F6A7B8C9D0E1F2 /* DashboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA2C3D4E5F6A7B8C9D0E1F2 /* DashboardViewController.swift */; };
 		CAB2C3D4E5F6A7B8C9D0E1F2 /* DashboardWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAB2C3D4E5F6A7B8C9D0E1F3 /* DashboardWindowController.swift */; };
 		CBB2C3D4E5F6A7B8C9D0E1F2 /* ShortcutSettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB2C3D4E5F6A7B8C9D0E1F2 /* ShortcutSettingsWindowController.swift */; };
+		CBC2C3D4E5F6A7B8C9D0E1F2 /* AssetLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC2C3D4E5F6A7B8C9D0E1F2 /* AssetLibraryManager.swift */; };
 		F1B2C3D4E5F6A7B8C9D0E1F2 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1B2C3D4E5F6A7B8C9D0E1F2 /* AppKit.framework */; };
 		F2B2C3D4E5F6A7B8C9D0E1F2 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2B2C3D4E5F6A7B8C9D0E1F2 /* AVFoundation.framework */; };
 		F3B2C3D4E5F6A7B8C9D0E1F2 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E3B2C3D4E5F6A7B8C9D0E1F2 /* Carbon.framework */; };
@@ -37,6 +38,7 @@
 		BAA2C3D4E5F6A7B8C9D0E1F2 /* DashboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewController.swift; sourceTree = "<group>"; };
 		BAB2C3D4E5F6A7B8C9D0E1F3 /* DashboardWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWindowController.swift; sourceTree = "<group>"; };
 		BBB2C3D4E5F6A7B8C9D0E1F2 /* ShortcutSettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutSettingsWindowController.swift; sourceTree = "<group>"; };
+		BBC2C3D4E5F6A7B8C9D0E1F2 /* AssetLibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetLibraryManager.swift; sourceTree = "<group>"; };
 		BAB2C3D4E5F6A7B8C9D0E1F2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E1B2C3D4E5F6A7B8C9D0E1F2 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		E2B2C3D4E5F6A7B8C9D0E1F2 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
@@ -78,6 +80,7 @@
 				B7B2C3D4E5F6A7B8C9D0E1F2 /* HotkeyManager.swift */,
 				B8B2C3D4E5F6A7B8C9D0E1F2 /* MenuBarController.swift */,
 				B9B2C3D4E5F6A7B8C9D0E1F2 /* SettingsManager.swift */,
+				BBC2C3D4E5F6A7B8C9D0E1F2 /* AssetLibraryManager.swift */,
 				BAA2C3D4E5F6A7B8C9D0E1F2 /* DashboardViewController.swift */,
 				BAB2C3D4E5F6A7B8C9D0E1F3 /* DashboardWindowController.swift */,
 				BBB2C3D4E5F6A7B8C9D0E1F2 /* ShortcutSettingsWindowController.swift */,
@@ -179,6 +182,7 @@
 				C7B2C3D4E5F6A7B8C9D0E1F2 /* HotkeyManager.swift in Sources */,
 				C8B2C3D4E5F6A7B8C9D0E1F2 /* MenuBarController.swift in Sources */,
 				C9B2C3D4E5F6A7B8C9D0E1F2 /* SettingsManager.swift in Sources */,
+				CBC2C3D4E5F6A7B8C9D0E1F2 /* AssetLibraryManager.swift in Sources */,
 				CAA2C3D4E5F6A7B8C9D0E1F2 /* DashboardViewController.swift in Sources */,
 				CAB2C3D4E5F6A7B8C9D0E1F2 /* DashboardWindowController.swift in Sources */,
 				CBB2C3D4E5F6A7B8C9D0E1F2 /* ShortcutSettingsWindowController.swift in Sources */,

@@ -58,6 +58,11 @@ final class OverlayView: NSView {
         ])
     }
 
+    func clearContent() {
+        currentView?.removeFromSuperview()
+        currentView = nil
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard let window = window else {
             return

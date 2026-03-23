@@ -17,6 +17,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }()
 
     private let statusItem: NSStatusItem
+    private let assetLibrary = AssetLibraryManager.shared
     private weak var overlayWindowController: OverlayWindowController?
     private let dashboardViewController: DashboardViewController
     private let dashboardWindowController: DashboardWindowController
@@ -60,7 +61,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
         quickMenu.addItem(toggleDashboardMenuItem)
 
         let openItem = NSMenuItem(
-            title: "Open Animation File...",
+            title: "Open Asset…",
             action: #selector(openAnimationFile),
             keyEquivalent: "o"
         )
@@ -155,7 +156,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
                 return
             }
 
-            guard self.loadAsset(url: url) else {
+            guard self.importAndLoadAsset(from: url) else {
                 self.showLoadFailedAlert()
                 return
             }
@@ -201,19 +202,23 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
             return
         }
 
-        let recentAssets = SettingsManager.shared.recentFileURLs.map { url in
-            DashboardRecentAsset(
-                name: url.deletingPathExtension().lastPathComponent,
-                url: url,
-                formatLabel: url.pathExtension.uppercased(),
-                isCurrent: url == overlay.currentMediaURL
+        let currentEntry = overlay.currentMediaURL.flatMap { assetLibrary.entry(forAssetURL: $0) }
+        let libraryAssets = assetLibrary.allEntries().map { entry in
+            DashboardLibraryAsset(
+                id: entry.id,
+                name: entry.displayName,
+                formatLabel: entry.formatLabel,
+                thumbnailURL: assetLibrary.thumbnailURL(for: entry),
+                sourceFileName: entry.originalFileName,
+                isFavorite: entry.isFavorite,
+                isCurrent: entry.id == currentEntry?.id
             )
         }
 
         let state = DashboardState(
-            currentFileName: overlay.currentMediaURL?.lastPathComponent,
+            currentFileName: currentEntry?.displayName ?? overlay.currentMediaURL?.lastPathComponent,
             currentFileURL: overlay.currentMediaURL,
-            recentAssets: recentAssets,
+            libraryAssets: libraryAssets,
             moveModeEnabled: overlay.isMoveModeEnabled,
             clickThroughEnabled: overlay.clickThroughEnabled,
             scale: SettingsManager.shared.scale,
@@ -248,16 +253,71 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
         return true
     }
 
+    @discardableResult
+    private func importAndLoadAsset(from sourceURL: URL) -> Bool {
+        do {
+            let entry = try assetLibrary.importAsset(from: sourceURL)
+            return loadAsset(url: assetLibrary.assetURL(for: entry))
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - DashboardViewControllerDelegate
 
     func dashboardViewControllerDidRequestOpenAnimation(_ controller: DashboardViewController) {
         openAnimationFile()
     }
 
-    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadAsset url: URL) {
-        guard loadAsset(url: url) else {
+    func dashboardViewController(_ controller: DashboardViewController, didRequestImportAsset url: URL) {
+        guard importAndLoadAsset(from: url) else {
             showLoadFailedAlert()
             return
+        }
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadLibraryAsset id: String) {
+        do {
+            let entry = try assetLibrary.markUsed(id: id)
+            guard loadAsset(url: assetLibrary.assetURL(for: entry)) else {
+                showLoadFailedAlert()
+                return
+            }
+        } catch {
+            showLoadFailedAlert()
+        }
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didToggleFavoriteLibraryAsset id: String) {
+        do {
+            _ = try assetLibrary.toggleFavorite(id: id)
+            updateDashboardState()
+        } catch {
+            NSSound.beep()
+        }
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRenameLibraryAsset id: String, to newName: String) {
+        do {
+            _ = try assetLibrary.renameEntry(id: id, displayName: newName)
+            updateDashboardState()
+        } catch {
+            NSSound.beep()
+        }
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didDeleteLibraryAsset id: String) {
+        let deletedEntry = assetLibrary.entry(id: id)
+
+        do {
+            try assetLibrary.removeEntry(id: id)
+            if let deletedEntry,
+               overlayWindowController?.currentMediaURL?.path == assetLibrary.assetURL(for: deletedEntry).path {
+                overlayWindowController?.clearMedia()
+            }
+            updateDashboardState()
+        } catch {
+            NSSound.beep()
         }
     }
 

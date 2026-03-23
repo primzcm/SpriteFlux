@@ -131,6 +131,14 @@ final class OverlayWindowController: NSWindowController {
         postStateDidChange()
     }
 
+    func clearMedia() {
+        currentMediaSize = defaultSize
+        settings.lastFileURL = nil
+        overlayView.clearContent()
+        resizeWindow()
+        postStateDidChange()
+    }
+
     private func applyInteractionMode() {
         guard let window = window else {
             return

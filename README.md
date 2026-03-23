@@ -11,7 +11,7 @@ SpriteFlux is a native macOS menu bar overlay app that displays a floating anima
 - Dashboard window that opens automatically on launch and can be reopened from the menu bar icon
 - Editable global hotkey for Move Mode, defaulting to Cmd + Shift + M
 - Persistent overlay state (position, file path, modes)
-- Recent asset library for quick reloading from the dashboard
+- Saved asset library with copied files, thumbnails, favorites, rename, and delete actions
 
 ## Requirements
 - macOS 12.0 or later
@@ -37,8 +37,8 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 - `Move Mode` Enable dragging the overlay.
 - `Click-through` Enable or disable mouse passthrough.
 - `Reset Position` Move the overlay to the default center-right position.
-- `Library` Reopen recent assets directly from the dashboard.
-- `Drag and drop` Drop a supported file onto the dashboard to load it immediately.
+- `Library` Import assets into SpriteFlux, then load, favorite, rename, or delete them from the dashboard.
+- `Drag and drop` Drop a supported file onto the dashboard to import it into the library and load it immediately.
 - `Shortcuts…` Open the shortcuts view, edit the Toggle Move Mode hotkey, or go back to the dashboard.
 - `Hide Dashboard` Close the dashboard without quitting SpriteFlux.
 - `Quit` Exit SpriteFlux.
@@ -46,11 +46,11 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 
 ## Right-Click Menu
 - `Show Dashboard` or `Hide Dashboard` Toggle the dashboard window.
-- `Open Animation File...` Choose media without opening the dashboard first.
+- `Open Asset…` Import media without opening the dashboard first.
 - `Move Mode` Toggle overlay dragging directly from the status icon.
 - `Click-through` Toggle mouse passthrough directly from the status icon.
 - `Reset Position` Move the overlay to the default center-right position.
 - `Quit` Exit SpriteFlux.
 
 ## Load Assets
-Use the dashboard action `Open…`, drag a file onto the dashboard, or reopen an entry from `Library`. SpriteFlux currently supports `.mp4`, `.mov`, `.gif`, `.png`, `.jpg`, `.jpeg`, and `.webp` assets. The overlay will resize to fit the media automatically.
+Use the dashboard action `Open…`, drag a file onto the dashboard, or use `Library`. Imported assets are copied into SpriteFlux's Application Support folder so the library keeps working even if the original file moves. SpriteFlux currently supports `.mp4`, `.mov`, `.gif`, `.png`, `.jpg`, `.jpeg`, and `.webp` assets. The overlay will resize to fit the media automatically.

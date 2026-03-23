@@ -7,13 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Added a `.gitignore` to keep local Xcode user state and build artifacts out of version control.
-- Added a recent asset library to the dashboard so SpriteFlux can quickly reopen previously used files.
 - Added dashboard drag-and-drop loading for supported asset files.
+- Added a file-backed asset library stored in Application Support with copied media files and generated thumbnails.
 
 ### Changed
 - Polished the dashboard with a visible loaded-file label, slider value readouts, and clearer labeled actions.
 - Expanded SpriteFlux asset support from video plus GIF to include PNG, JPG/JPEG, and WEBP files.
 - Applied a reviewed subset of Xcode recommended project settings for warnings, debug build speed, and release dead code stripping.
+- Replaced the temporary recent-assets list with a saved library that supports load, favorite, rename, and delete actions.
 
 ## [0.2.1] - 2026-03-23
 ### Added
