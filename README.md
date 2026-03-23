@@ -45,6 +45,7 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 - `Hide Dashboard` Close the dashboard without quitting SpriteFlux.
 - `Quit` Exit SpriteFlux.
 - The dashboard shows the selected companion plus live Scale/Opacity values for that companion.
+- The dashboard uses a wider two-column layout so the active scene and asset library sit beside the controls instead of extending vertically.
 
 ## Right-Click Menu
 - `Show Dashboard` or `Hide Dashboard` Toggle the dashboard window.

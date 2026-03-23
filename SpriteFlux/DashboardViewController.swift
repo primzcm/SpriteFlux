@@ -140,7 +140,7 @@ final class DashboardViewController: NSViewController {
         }
         self.view = visualEffectView
 
-        preferredContentSize = NSSize(width: 330, height: 600)
+        preferredContentSize = NSSize(width: 620, height: 540)
 
         // 1. Header & Preview
         let titleLabel = NSTextField(labelWithString: "SpriteFlux")
@@ -213,7 +213,7 @@ final class DashboardViewController: NSViewController {
         activeCompanionsScrollView.autohidesScrollers = true
         activeCompanionsScrollView.borderType = .noBorder
         activeCompanionsScrollView.documentView = activeDocumentView
-        activeCompanionsScrollView.heightAnchor.constraint(equalToConstant: 96).isActive = true
+        activeCompanionsScrollView.heightAnchor.constraint(equalToConstant: 104).isActive = true
 
         let activeSection = DashboardViewController.makeSection(
             arrangedSubviews: [activeTitleLabel, activeHintLabel, activeCompanionsScrollView]
@@ -305,7 +305,7 @@ final class DashboardViewController: NSViewController {
         libraryScrollView.borderType = .noBorder
         libraryScrollView.documentView = libraryDocumentView
         libraryScrollView.contentView.postsBoundsChangedNotifications = true
-        libraryScrollView.heightAnchor.constraint(equalToConstant: 180).isActive = true
+        libraryScrollView.heightAnchor.constraint(equalToConstant: 248).isActive = true
 
         let librarySection = DashboardViewController.makeSection(
             arrangedSubviews: [libraryTitleLabel, libraryHintLabel, libraryScrollView]
@@ -357,19 +357,40 @@ final class DashboardViewController: NSViewController {
         footerStack.addView(quitButton, in: .trailing)
 
         // Assembly
-        let contentStack = NSStackView(views: [headerStack, activeSection, togglesSection, slidersSection, librarySection, actionsSection, footerStack])
+        let leftColumnStack = NSStackView(views: [activeSection, librarySection])
+        leftColumnStack.orientation = .vertical
+        leftColumnStack.alignment = .leading
+        leftColumnStack.spacing = 14
+        leftColumnStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let rightColumnStack = NSStackView(views: [togglesSection, slidersSection, actionsSection, footerStack])
+        rightColumnStack.orientation = .vertical
+        rightColumnStack.alignment = .leading
+        rightColumnStack.spacing = 14
+        rightColumnStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let bodyColumnsStack = NSStackView(views: [leftColumnStack, rightColumnStack])
+        bodyColumnsStack.orientation = .horizontal
+        bodyColumnsStack.alignment = .top
+        bodyColumnsStack.distribution = .fillEqually
+        bodyColumnsStack.spacing = 14
+        bodyColumnsStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let contentStack = NSStackView(views: [headerStack, bodyColumnsStack])
         contentStack.orientation = .vertical
         contentStack.alignment = .leading
         contentStack.spacing = 14
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
         headerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        activeSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        togglesSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        slidersSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        librarySection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        actionsSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        footerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        bodyColumnsStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        leftColumnStack.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
+        activeSection.widthAnchor.constraint(equalTo: leftColumnStack.widthAnchor).isActive = true
+        librarySection.widthAnchor.constraint(equalTo: leftColumnStack.widthAnchor).isActive = true
+        togglesSection.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
+        slidersSection.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
+        actionsSection.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
+        footerStack.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
 
         let contentDocumentView = NSView()
         contentDocumentView.translatesAutoresizingMaskIntoConstraints = false

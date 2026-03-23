@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Applied a reviewed subset of Xcode recommended project settings for warnings, debug build speed, and release dead code stripping.
 - Replaced the temporary recent-assets list with a saved library that supports load, favorite, rename, and delete actions.
 - Changed the dashboard controls to operate on the selected active companion and updated the library to add companions into the scene instead of replacing a single overlay.
+- Reworked the dashboard into a wider two-column layout so active companions and the library use horizontal space instead of forcing an overly tall window.
 
 ## [0.2.1] - 2026-03-23
 ### Added
