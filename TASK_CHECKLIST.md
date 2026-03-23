@@ -13,8 +13,20 @@ DONE
 - Enabled drag movement using overlay view mouse events.
 - Prevented visual ghosting by disabling background window movement while dragging.
 - Improved drag tracking to follow the mouse smoothly.
+- Replaced the left-click menu with a hideable dashboard window opened from the status bar icon.
+- Added right-click status bar actions for toggling move mode and click-through directly from the icon menu.
+- Made the dashboard window open automatically on launch until the user hides it.
+- Redesigned the Dashboard UI with fullSizeContentView, sf symbols, NSSwitches, and modern padding.
+- Added a dashboard Options button and AppKit keyboard shortcut editor for the Move Mode hotkey.
+- Simplified the shortcut editor text to better match the dashboard design.
+- Added a back button and recorder-style shortcut field to make the shortcuts view feel closer to the dashboard.
+- Refined the shortcuts layout with a centered heading and better-aligned recorder control.
+- Restored the shortcut recorder label to its earlier font size after switching to symbol rendering.
+- Rendered recorded shortcuts with macOS modifier symbols inside a monospaced shortcut label.
+- Polished the dashboard with a loaded-file label, slider value readouts, and clearer labeled actions.
+- Added `.gitignore` and removed tracked Xcode `xcuserdata` state files.
 
 IN-PROGRESS
 
 TODO
-- Optional SwiftUI settings panel for scale and opacity controls.
+- Optional settings expansion for additional shortcut actions and dashboard preferences.

@@ -9,6 +9,10 @@ final class SettingsManager {
         static let lastWindowOriginY = "lastWindowOriginY"
         static let clickThroughEnabled = "clickThroughEnabled"
         static let isMoveMode = "isMoveMode"
+        static let scale = "scale"
+        static let opacity = "opacity"
+        static let moveModeHotkeyKeyCode = "moveModeHotkeyKeyCode"
+        static let moveModeHotkeyModifiers = "moveModeHotkeyModifiers"
     }
 
     private let defaults = UserDefaults.standard
@@ -71,6 +75,48 @@ final class SettingsManager {
         }
         set {
             defaults.set(newValue, forKey: Keys.isMoveMode)
+        }
+    }
+
+    var scale: Double {
+        get {
+            if defaults.object(forKey: Keys.scale) == nil {
+                return 1.0
+            }
+            return defaults.double(forKey: Keys.scale)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.scale)
+        }
+    }
+
+    var opacity: Double {
+        get {
+            if defaults.object(forKey: Keys.opacity) == nil {
+                return 1.0
+            }
+            return defaults.double(forKey: Keys.opacity)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.opacity)
+        }
+    }
+
+    var moveModeShortcut: KeyboardShortcut {
+        get {
+            let defaultShortcut = KeyboardShortcut.moveModeDefault
+            let keyCode = defaults.object(forKey: Keys.moveModeHotkeyKeyCode) == nil
+                ? defaultShortcut.keyCode
+                : UInt32(defaults.integer(forKey: Keys.moveModeHotkeyKeyCode))
+            let modifiers = defaults.object(forKey: Keys.moveModeHotkeyModifiers) == nil
+                ? defaultShortcut.modifiers
+                : UInt32(defaults.integer(forKey: Keys.moveModeHotkeyModifiers))
+
+            return KeyboardShortcut(keyCode: keyCode, modifiers: modifiers)
+        }
+        set {
+            defaults.set(Int(newValue.keyCode), forKey: Keys.moveModeHotkeyKeyCode)
+            defaults.set(Int(newValue.modifiers), forKey: Keys.moveModeHotkeyModifiers)
         }
     }
 }
