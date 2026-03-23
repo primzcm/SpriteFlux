@@ -109,7 +109,11 @@ final class DashboardViewController: NSViewController {
         buttonRow.distribution = .fillEqually
         buttonRow.spacing = 10
 
-        let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow])
+        let optionsButton = NSButton(title: " Options", target: self, action: #selector(openOptions))
+        optionsButton.bezelStyle = .rounded
+        optionsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+
+        let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow, optionsButton])
 
         // 5. Footer
         let hideButton = NSButton(image: NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "Hide Dashboard")!, target: self, action: #selector(hideDashboard))
@@ -176,6 +180,10 @@ final class DashboardViewController: NSViewController {
 
     @objc private func openAnimationFile() {
         delegate?.dashboardViewControllerDidRequestOpenAnimation(self)
+    }
+
+    @objc private func openOptions() {
+        delegate?.dashboardViewControllerDidRequestSettings(self)
     }
 
     @objc private func toggleMoveMode() {

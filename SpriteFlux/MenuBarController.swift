@@ -6,6 +6,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     private weak var overlayWindowController: OverlayWindowController?
     private let dashboardViewController: DashboardViewController
     private let dashboardWindowController: DashboardWindowController
+    private let shortcutSettingsWindowController: ShortcutSettingsWindowController
     private let quickMenu: NSMenu
     private let toggleDashboardMenuItem: NSMenuItem
     private let toggleMoveModeMenuItem: NSMenuItem
@@ -16,6 +17,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         dashboardViewController = DashboardViewController()
         dashboardWindowController = DashboardWindowController(contentViewController: dashboardViewController)
+        shortcutSettingsWindowController = ShortcutSettingsWindowController()
         quickMenu = NSMenu()
         toggleDashboardMenuItem = NSMenuItem(
             title: "Show Dashboard",
@@ -36,6 +38,9 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
         super.init()
 
         dashboardViewController.delegate = self
+        shortcutSettingsWindowController.onBack = { [weak self] in
+            self?.showDashboardWindow()
+        }
 
         toggleDashboardMenuItem.target = self
         quickMenu.addItem(toggleDashboardMenuItem)
@@ -246,6 +251,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
 
     func dashboardViewControllerDidRequestSettings(_ controller: DashboardViewController) {
         dashboardWindowController.hideDashboard()
+        shortcutSettingsWindowController.showShortcutSettings()
         updateQuickMenuState()
     }
 

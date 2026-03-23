@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-03-23
+### Added
+- Dashboard `Options` action that opens an AppKit keyboard shortcuts window.
+- In-app Move Mode shortcut editor with live recording and a restore-default action.
+- Back button in the shortcuts view that returns to the dashboard.
+
+### Changed
+- The Move Mode global hotkey now loads from persisted settings instead of being hard-coded to Cmd + Shift + M.
+- Simplified the shortcut editor copy to better match the compact dashboard style.
+- Restyled the shortcut editor into a form-style layout with a recorder field and subtle reset control.
+- Centered the shortcuts heading and pushed the recorder control to the trailing side for a cleaner settings layout.
+- Restored the recorder label to its earlier font size after switching to symbolic shortcut rendering.
+- Switched the shortcut display to macOS-style modifier symbols rendered in a monospaced label inside the recorder field.
+
 ## [0.2.0] - 2026-03-22
 ### Added
 - AppKit dashboard window that opens from the menu bar icon and can be hidden without quitting the app.

@@ -11,6 +11,8 @@ final class SettingsManager {
         static let isMoveMode = "isMoveMode"
         static let scale = "scale"
         static let opacity = "opacity"
+        static let moveModeHotkeyKeyCode = "moveModeHotkeyKeyCode"
+        static let moveModeHotkeyModifiers = "moveModeHotkeyModifiers"
     }
 
     private let defaults = UserDefaults.standard
@@ -97,6 +99,24 @@ final class SettingsManager {
         }
         set {
             defaults.set(newValue, forKey: Keys.opacity)
+        }
+    }
+
+    var moveModeShortcut: KeyboardShortcut {
+        get {
+            let defaultShortcut = KeyboardShortcut.moveModeDefault
+            let keyCode = defaults.object(forKey: Keys.moveModeHotkeyKeyCode) == nil
+                ? defaultShortcut.keyCode
+                : UInt32(defaults.integer(forKey: Keys.moveModeHotkeyKeyCode))
+            let modifiers = defaults.object(forKey: Keys.moveModeHotkeyModifiers) == nil
+                ? defaultShortcut.modifiers
+                : UInt32(defaults.integer(forKey: Keys.moveModeHotkeyModifiers))
+
+            return KeyboardShortcut(keyCode: keyCode, modifiers: modifiers)
+        }
+        set {
+            defaults.set(Int(newValue.keyCode), forKey: Keys.moveModeHotkeyKeyCode)
+            defaults.set(Int(newValue.modifiers), forKey: Keys.moveModeHotkeyModifiers)
         }
     }
 }
