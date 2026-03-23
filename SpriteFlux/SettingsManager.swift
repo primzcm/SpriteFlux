@@ -9,6 +9,8 @@ final class SettingsManager {
         static let lastWindowOriginY = "lastWindowOriginY"
         static let clickThroughEnabled = "clickThroughEnabled"
         static let isMoveMode = "isMoveMode"
+        static let scale = "scale"
+        static let opacity = "opacity"
     }
 
     private let defaults = UserDefaults.standard
@@ -71,6 +73,30 @@ final class SettingsManager {
         }
         set {
             defaults.set(newValue, forKey: Keys.isMoveMode)
+        }
+    }
+
+    var scale: Double {
+        get {
+            if defaults.object(forKey: Keys.scale) == nil {
+                return 1.0
+            }
+            return defaults.double(forKey: Keys.scale)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.scale)
+        }
+    }
+
+    var opacity: Double {
+        get {
+            if defaults.object(forKey: Keys.opacity) == nil {
+                return 1.0
+            }
+            return defaults.double(forKey: Keys.opacity)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.opacity)
         }
     }
 }

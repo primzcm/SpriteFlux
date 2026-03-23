@@ -2,8 +2,11 @@ import Cocoa
 
 struct DashboardState {
     let currentFileName: String?
+    let currentFileURL: URL?
     let moveModeEnabled: Bool
     let clickThroughEnabled: Bool
+    let scale: Double
+    let opacity: Double
 }
 
 protocol DashboardViewControllerDelegate: AnyObject {
@@ -13,15 +16,21 @@ protocol DashboardViewControllerDelegate: AnyObject {
     func dashboardViewControllerDidRequestResetPosition(_ controller: DashboardViewController)
     func dashboardViewControllerDidRequestHide(_ controller: DashboardViewController)
     func dashboardViewControllerDidRequestQuit(_ controller: DashboardViewController)
+    func dashboardViewController(_ controller: DashboardViewController, didChangeScale scale: Double)
+    func dashboardViewController(_ controller: DashboardViewController, didChangeOpacity opacity: Double)
+    func dashboardViewControllerDidRequestSettings(_ controller: DashboardViewController)
 }
 
 final class DashboardViewController: NSViewController {
     weak var delegate: DashboardViewControllerDelegate?
 
-    private let statusValueLabel = DashboardViewController.makeValueLabel()
-    private let fileValueLabel = DashboardViewController.makeValueLabel()
     private let moveModeSwitch = NSSwitch()
     private let clickThroughSwitch = NSSwitch()
+    private let scaleSlider = NSSlider(value: 1.0, minValue: 0.5, maxValue: 2.0, target: nil, action: nil)
+    private let opacitySlider = NSSlider(value: 1.0, minValue: 0.1, maxValue: 1.0, target: nil, action: nil)
+    
+    private let thumbnailView = OverlayView()
+    private var loadedFileURL: URL?
 
     override func loadView() {
         let visualEffectView = NSVisualEffectView()
@@ -30,102 +39,112 @@ final class DashboardViewController: NSViewController {
         visualEffectView.state = .active
         self.view = visualEffectView
 
-        preferredContentSize = NSSize(width: 360, height: 480)
+        preferredContentSize = NSSize(width: 330, height: 490)
 
+        // 1. Header & Preview
         let titleLabel = NSTextField(labelWithString: "SpriteFlux")
-        titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
+        titleLabel.font = .systemFont(ofSize: 26, weight: .heavy)
+        titleLabel.textColor = .labelColor
 
-        let subtitleLabel = NSTextField(labelWithString: "Overlay Dashboard")
-        subtitleLabel.textColor = .secondaryLabelColor
-        subtitleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        let thumbnailContainer = NSBox()
+        thumbnailContainer.boxType = .custom
+        thumbnailContainer.cornerRadius = 45
+        thumbnailContainer.borderWidth = 0
+        thumbnailContainer.fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.2)
+        thumbnailContainer.contentViewMargins = .zero
+        thumbnailContainer.translatesAutoresizingMaskIntoConstraints = false
+        thumbnailContainer.widthAnchor.constraint(equalToConstant: 90).isActive = true
+        thumbnailContainer.heightAnchor.constraint(equalToConstant: 90).isActive = true
 
-        let headerStack = NSStackView(views: [titleLabel, subtitleLabel])
+        thumbnailView.translatesAutoresizingMaskIntoConstraints = false
+        thumbnailContainer.addSubview(thumbnailView)
+        NSLayoutConstraint.activate([
+            thumbnailView.centerXAnchor.constraint(equalTo: thumbnailContainer.centerXAnchor),
+            thumbnailView.centerYAnchor.constraint(equalTo: thumbnailContainer.centerYAnchor),
+            thumbnailView.widthAnchor.constraint(equalTo: thumbnailContainer.widthAnchor),
+            thumbnailView.heightAnchor.constraint(equalTo: thumbnailContainer.heightAnchor)
+        ])
+
+        let headerStack = NSStackView(views: [titleLabel, thumbnailContainer])
         headerStack.orientation = .vertical
         headerStack.alignment = .centerX
-        headerStack.spacing = 2
+        headerStack.spacing = 16
 
-        let statusIcon = DashboardViewController.makeIcon(symbolName: "info.circle.fill", tint: .controlAccentColor)
-        let statusHeader = DashboardViewController.makeSectionHeader(title: "Status", icon: statusIcon)
-        let statusStack = DashboardViewController.makeInfoStack(title: "Current State", valueLabel: statusValueLabel)
-
-        let fileIcon = DashboardViewController.makeIcon(symbolName: "film.fill", tint: .controlAccentColor)
-        let fileHeader = DashboardViewController.makeSectionHeader(title: "Animation", icon: fileIcon)
-        let fileStack = DashboardViewController.makeInfoStack(title: "Loaded File", valueLabel: fileValueLabel)
-
-        let hotkeyIcon = DashboardViewController.makeIcon(symbolName: "keyboard", tint: .secondaryLabelColor)
-        let hotkeyHeader = DashboardViewController.makeSectionHeader(title: "Shortcuts", icon: hotkeyIcon)
-        let hotkeyLabel = NSTextField(labelWithString: "Global Toggle: Cmd + Shift + M")
-        hotkeyLabel.textColor = .secondaryLabelColor
-        hotkeyLabel.font = .systemFont(ofSize: 12, weight: .regular)
-
-        let infoSection = DashboardViewController.makeSection(
-            arrangedSubviews: [
-                statusHeader,
-                statusStack,
-                DashboardViewController.makeSeparator(),
-                fileHeader,
-                fileStack,
-                DashboardViewController.makeSeparator(),
-                hotkeyHeader,
-                hotkeyLabel
-            ]
-        )
-
+        // 2. Toggles Section
         moveModeSwitch.target = self
         moveModeSwitch.action = #selector(toggleMoveMode)
         let moveModeRow = DashboardViewController.makeSwitchRow(title: "Move Mode", icon: "arrow.up.and.down.and.arrow.left.and.right", toggle: moveModeSwitch)
 
         clickThroughSwitch.target = self
         clickThroughSwitch.action = #selector(toggleClickThrough)
-        let clickThroughRow = DashboardViewController.makeSwitchRow(title: "Click-through", icon: "cursorarrow.click", toggle: clickThroughSwitch)
+        let clickThroughRow = DashboardViewController.makeSwitchRow(title: "Ignore Clicks", icon: "cursorarrow.click", toggle: clickThroughSwitch)
 
-        let openButtonRow = NSButton(title: " Open Animation...", target: self, action: #selector(openAnimationFile))
-        openButtonRow.bezelStyle = .rounded
-        openButtonRow.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+        let togglesSection = DashboardViewController.makeSection(arrangedSubviews: [moveModeRow, clickThroughRow])
+
+        // 3. Sliders Section
+        scaleSlider.target = self
+        scaleSlider.action = #selector(scaleChanged)
+        opacitySlider.target = self
+        opacitySlider.action = #selector(opacityChanged)
+
+        scaleSlider.isContinuous = true
+        opacitySlider.isContinuous = true
+
+        let scaleStack = DashboardViewController.makeSliderRow(title: "Scale", icon: "arrow.up.left.and.down.right.and.arrow.up.right.and.down.left", slider: scaleSlider)
+        let opacityStack = DashboardViewController.makeSliderRow(title: "Opacity", icon: "circle.lefthalf.filled", slider: opacitySlider)
+        
+        let slidersSection = DashboardViewController.makeSection(arrangedSubviews: [scaleStack, opacityStack])
+
+        // 4. Actions
+        let openButton = NSButton(title: " Open File", target: self, action: #selector(openAnimationFile))
+        openButton.bezelStyle = .rounded
+        openButton.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
         
         let resetButton = NSButton(title: " Reset Position", target: self, action: #selector(resetPosition))
         resetButton.bezelStyle = .rounded
         resetButton.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
 
-        let buttonRow = NSStackView(views: [openButtonRow, resetButton])
+        let buttonRow = NSStackView(views: [openButton, resetButton])
         buttonRow.orientation = .horizontal
         buttonRow.distribution = .fillEqually
         buttonRow.spacing = 10
 
-        let controlsSection = DashboardViewController.makeSection(
-            arrangedSubviews: [moveModeRow, clickThroughRow, DashboardViewController.makeSeparator(), buttonRow]
-        )
+        let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow])
 
-        let hideButton = NSButton(title: " Hide", target: self, action: #selector(hideDashboard))
-        hideButton.bezelStyle = .rounded
-        hideButton.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: nil)
+        // 5. Footer
+        let settingsButton = NSButton(image: NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)!, target: self, action: #selector(openSettings))
+        settingsButton.isBordered = false
+        settingsButton.contentTintColor = .secondaryLabelColor
 
-        let quitButton = NSButton(title: " Quit App", target: self, action: #selector(quitApp))
-        quitButton.bezelStyle = .rounded
-        quitButton.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
+        let quitButton = NSButton(image: NSImage(systemSymbolName: "power", accessibilityDescription: nil)!, target: self, action: #selector(quitApp))
+        quitButton.isBordered = false
+        quitButton.contentTintColor = .secondaryLabelColor
 
-        let footerStack = NSStackView(views: [hideButton, quitButton])
+        let footerStack = NSStackView(views: [settingsButton, quitButton])
         footerStack.orientation = .horizontal
-        footerStack.distribution = .fillEqually
-        footerStack.spacing = 10
+        footerStack.distribution = .gravityAreas
+        footerStack.addView(settingsButton, in: .leading)
+        footerStack.addView(quitButton, in: .trailing)
 
-        let contentStack = NSStackView(views: [headerStack, infoSection, controlsSection, footerStack])
+        // Assembly
+        let contentStack = NSStackView(views: [headerStack, togglesSection, slidersSection, actionsSection, footerStack])
         contentStack.orientation = .vertical
         contentStack.alignment = .leading
-        contentStack.spacing = 20
+        contentStack.spacing = 16
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
         headerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        infoSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-        controlsSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        togglesSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        slidersSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+        actionsSection.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
         footerStack.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
 
         visualEffectView.addSubview(contentStack)
 
         NSLayoutConstraint.activate([
-            contentStack.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor, constant: 20),
-            contentStack.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor, constant: -20),
-            contentStack.topAnchor.constraint(equalTo: visualEffectView.topAnchor, constant: 40),
+            contentStack.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor, constant: 24),
+            contentStack.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor, constant: -24),
+            contentStack.topAnchor.constraint(equalTo: visualEffectView.topAnchor, constant: 36),
             contentStack.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor, constant: -20)
         ])
     }
@@ -133,19 +152,26 @@ final class DashboardViewController: NSViewController {
     func render(_ state: DashboardState) {
         moveModeSwitch.state = state.moveModeEnabled ? .on : .off
         clickThroughSwitch.state = state.clickThroughEnabled ? .on : .off
-
-        if state.moveModeEnabled {
-            statusValueLabel.stringValue = "Move mode active"
-            statusValueLabel.textColor = .systemBlue
-        } else if state.clickThroughEnabled {
-            statusValueLabel.stringValue = "Click-through active"
-            statusValueLabel.textColor = .systemGreen
-        } else {
-            statusValueLabel.stringValue = "Interactive overlay"
-            statusValueLabel.textColor = .labelColor
+        
+        if scaleSlider.doubleValue != state.scale {
+            scaleSlider.doubleValue = state.scale
+        }
+        if opacitySlider.doubleValue != state.opacity {
+            opacitySlider.doubleValue = state.opacity
         }
 
-        fileValueLabel.stringValue = state.currentFileName ?? "No animation selected"
+        if let url = state.currentFileURL, url != loadedFileURL {
+             loadedFileURL = url
+             _ = thumbnailView.loadMedia(url: url)
+        }
+    }
+
+    @objc private func scaleChanged() {
+        delegate?.dashboardViewController(self, didChangeScale: scaleSlider.doubleValue)
+    }
+
+    @objc private func opacityChanged() {
+        delegate?.dashboardViewController(self, didChangeOpacity: opacitySlider.doubleValue)
     }
 
     @objc private func openAnimationFile() {
@@ -164,36 +190,12 @@ final class DashboardViewController: NSViewController {
         delegate?.dashboardViewControllerDidRequestResetPosition(self)
     }
 
-    @objc private func hideDashboard() {
-        delegate?.dashboardViewControllerDidRequestHide(self)
+    @objc private func openSettings() {
+        delegate?.dashboardViewControllerDidRequestSettings(self)
     }
 
     @objc private func quitApp() {
         delegate?.dashboardViewControllerDidRequestQuit(self)
-    }
-
-    private static func makeSectionHeader(title: String, icon: NSImageView) -> NSStackView {
-        let titleLabel = NSTextField(labelWithString: title.uppercased())
-        titleLabel.textColor = .secondaryLabelColor
-        titleLabel.font = .systemFont(ofSize: 11, weight: .bold)
-
-        let stack = NSStackView(views: [icon, titleLabel])
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 6
-        return stack
-    }
-
-    private static func makeInfoStack(title: String, valueLabel: NSTextField) -> NSStackView {
-        let titleLabel = NSTextField(labelWithString: title)
-        titleLabel.textColor = .secondaryLabelColor
-        titleLabel.font = .systemFont(ofSize: 12, weight: .medium)
-
-        let stack = NSStackView(views: [titleLabel, valueLabel])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 2
-        return stack
     }
 
     private static func makeSwitchRow(title: String, icon: String, toggle: NSSwitch) -> NSStackView {
@@ -216,12 +218,34 @@ final class DashboardViewController: NSViewController {
         return rowStack
     }
 
+    private static func makeSliderRow(title: String, icon: String, slider: NSSlider) -> NSStackView {
+        let iconView = makeIcon(symbolName: icon, tint: .labelColor)
+        
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.widthAnchor.constraint(equalToConstant: 60).isActive = true
+
+        let leftStack = NSStackView(views: [iconView, label])
+        leftStack.orientation = .horizontal
+        leftStack.alignment = .centerY
+        leftStack.spacing = 8
+
+        let rowStack = NSStackView(views: [leftStack, slider])
+        rowStack.orientation = .horizontal
+        rowStack.alignment = .centerY
+        rowStack.spacing = 10
+        slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        return rowStack
+    }
+
     private static func makeIcon(symbolName: String, tint: NSColor) -> NSImageView {
-        let config = NSImage.SymbolConfiguration(textStyle: .body, scale: .medium)
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
         let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(config)
         let imageView = NSImageView(image: image ?? NSImage())
         imageView.contentTintColor = tint
+        imageView.widthAnchor.constraint(equalToConstant: 20).isActive = true
         return imageView
     }
 
@@ -229,7 +253,7 @@ final class DashboardViewController: NSViewController {
         let stack = NSStackView(views: arrangedSubviews)
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 12
+        stack.spacing = 16
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         for view in arrangedSubviews {
@@ -241,7 +265,7 @@ final class DashboardViewController: NSViewController {
         box.cornerRadius = 14
         box.borderWidth = 1
         box.borderColor = NSColor.separatorColor.withAlphaComponent(0.2)
-        box.fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.6)
+        box.fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.4)
         box.contentViewMargins = .zero
         box.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(stack)
@@ -254,20 +278,5 @@ final class DashboardViewController: NSViewController {
         ])
 
         return box
-    }
-
-    private static func makeValueLabel() -> NSTextField {
-        let label = NSTextField(labelWithString: "")
-        label.font = .systemFont(ofSize: 13, weight: .semibold)
-        label.lineBreakMode = .byTruncatingMiddle
-        label.maximumNumberOfLines = 1
-        return label
-    }
-
-    private static func makeSeparator() -> NSView {
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        return separator
     }
 }

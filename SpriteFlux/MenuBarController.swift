@@ -187,8 +187,11 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
 
         let state = DashboardState(
             currentFileName: overlay.currentMediaURL?.lastPathComponent,
+            currentFileURL: overlay.currentMediaURL,
             moveModeEnabled: overlay.isMoveModeEnabled,
-            clickThroughEnabled: overlay.clickThroughEnabled
+            clickThroughEnabled: overlay.clickThroughEnabled,
+            scale: SettingsManager.shared.scale,
+            opacity: SettingsManager.shared.opacity
         )
         dashboardViewController.render(state)
         updateQuickMenuState()
@@ -208,6 +211,8 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
         alert.runModal()
     }
 
+    // MARK: - DashboardViewControllerDelegate
+
     func dashboardViewControllerDidRequestOpenAnimation(_ controller: DashboardViewController) {
         openAnimationFile()
     }
@@ -225,6 +230,21 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     }
 
     func dashboardViewControllerDidRequestHide(_ controller: DashboardViewController) {
+        dashboardWindowController.hideDashboard()
+        updateQuickMenuState()
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didChangeScale scale: Double) {
+        SettingsManager.shared.scale = scale
+        overlayWindowController?.updateScale()
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didChangeOpacity opacity: Double) {
+        SettingsManager.shared.opacity = opacity
+        overlayWindowController?.updateOpacity()
+    }
+
+    func dashboardViewControllerDidRequestSettings(_ controller: DashboardViewController) {
         dashboardWindowController.hideDashboard()
         updateQuickMenuState()
     }
