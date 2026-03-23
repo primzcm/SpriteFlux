@@ -7,17 +7,19 @@ final class DashboardWindowController: NSWindowController {
 
     init(contentViewController: NSViewController) {
         let initialSize = contentViewController.preferredContentSize == .zero
-            ? NSSize(width: 360, height: 320)
+            ? NSSize(width: 360, height: 440)
             : contentViewController.preferredContentSize
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: initialSize),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
 
         window.title = "SpriteFlux Dashboard"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
         window.center()
         window.isReleasedWhenClosed = false
         window.setContentSize(initialSize)

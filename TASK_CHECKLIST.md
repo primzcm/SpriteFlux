@@ -16,6 +16,7 @@ DONE
 - Replaced the left-click menu with a hideable dashboard window opened from the status bar icon.
 - Added right-click status bar actions for toggling move mode and click-through directly from the icon menu.
 - Made the dashboard window open automatically on launch until the user hides it.
+- Redesigned the Dashboard UI with fullSizeContentView, sf symbols, NSSwitches, and modern padding.
 
 IN-PROGRESS
 

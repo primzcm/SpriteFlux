@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - The dashboard window now opens automatically when SpriteFlux launches and stays available until the user hides it.
+- **Redesigned Dashboard**: Modernized the dashboard interface with grouped cards, NSSwitch toggles, SF Symbol icon support, and a unified transparent titlebar layout.
 
 ## [0.1.0] - 2026-02-07
 ### Added
