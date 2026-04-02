@@ -18,12 +18,20 @@ struct DashboardLibraryAsset {
     let isActive: Bool
 }
 
+struct DashboardScenePreset {
+    let id: String
+    let name: String
+    let detailLabel: String
+}
+
 struct DashboardState {
     let currentFileName: String?
     let currentFileURL: URL?
     let activeCompanions: [DashboardActiveCompanion]
     let libraryAssets: [DashboardLibraryAsset]
+    let scenePresets: [DashboardScenePreset]
     let hasSelectedCompanion: Bool
+    let hasActiveCompanions: Bool
     let moveModeEnabled: Bool
     let clickThroughEnabled: Bool
     let scale: Double
@@ -39,6 +47,9 @@ protocol DashboardViewControllerDelegate: AnyObject {
     func dashboardViewController(_ controller: DashboardViewController, didDeleteLibraryAsset id: String)
     func dashboardViewController(_ controller: DashboardViewController, didRequestSelectActiveCompanion id: String)
     func dashboardViewController(_ controller: DashboardViewController, didRequestRemoveActiveCompanion id: String)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestSaveScenePreset name: String)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadScenePreset id: String)
+    func dashboardViewController(_ controller: DashboardViewController, didRequestDeleteScenePreset id: String)
     func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController)
     func dashboardViewControllerDidToggleClickThrough(_ controller: DashboardViewController)
     func dashboardViewControllerDidRequestResetPosition(_ controller: DashboardViewController)
@@ -122,10 +133,14 @@ final class DashboardViewController: NSViewController {
     private let activeCompanionsStack = NSStackView()
     private let activeCompanionsEmptyLabel = NSTextField(labelWithString: "No active companions")
     private let activeCompanionsScrollView = NSScrollView()
+    private let scenePresetsStack = NSStackView()
+    private let scenePresetsEmptyLabel = NSTextField(labelWithString: "No saved scenes yet")
+    private let scenePresetsScrollView = NSScrollView()
     private let recentAssetsStack = NSStackView()
     private let recentAssetsEmptyLabel = NSTextField(labelWithString: "No recent assets yet")
     private let libraryScrollView = NSScrollView()
     private let resetPositionButton = NSButton()
+    private let saveSceneButton = NSButton()
 
     override func loadView() {
         let visualEffectView = DashboardDropView()
@@ -219,7 +234,56 @@ final class DashboardViewController: NSViewController {
             arrangedSubviews: [activeTitleLabel, activeHintLabel, activeCompanionsScrollView]
         )
 
-        // 3. Toggles Section
+        // 3. Scene Presets
+        let scenesTitleLabel = NSTextField(labelWithString: "Scenes")
+        scenesTitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+
+        let scenesHintLabel = NSTextField(labelWithString: "Save the current layout or reload a saved scene.")
+        scenesHintLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        scenesHintLabel.textColor = .secondaryLabelColor
+
+        saveSceneButton.title = "Save Current…"
+        saveSceneButton.target = self
+        saveSceneButton.action = #selector(saveScenePreset)
+        saveSceneButton.bezelStyle = .rounded
+        saveSceneButton.image = NSImage(systemSymbolName: "square.and.arrow.down", accessibilityDescription: nil)
+        saveSceneButton.imagePosition = .imageLeading
+        saveSceneButton.toolTip = "Save the current companion layout"
+
+        scenePresetsStack.orientation = .vertical
+        scenePresetsStack.alignment = .leading
+        scenePresetsStack.spacing = 8
+        scenePresetsStack.translatesAutoresizingMaskIntoConstraints = false
+
+        scenePresetsEmptyLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        scenePresetsEmptyLabel.textColor = .tertiaryLabelColor
+
+        let sceneDocumentView = NSView()
+        sceneDocumentView.translatesAutoresizingMaskIntoConstraints = false
+        sceneDocumentView.addSubview(scenePresetsStack)
+
+        NSLayoutConstraint.activate([
+            scenePresetsStack.leadingAnchor.constraint(equalTo: sceneDocumentView.leadingAnchor),
+            scenePresetsStack.trailingAnchor.constraint(equalTo: sceneDocumentView.trailingAnchor),
+            scenePresetsStack.topAnchor.constraint(equalTo: sceneDocumentView.topAnchor),
+            scenePresetsStack.bottomAnchor.constraint(equalTo: sceneDocumentView.bottomAnchor),
+            scenePresetsStack.widthAnchor.constraint(equalTo: sceneDocumentView.widthAnchor)
+        ])
+
+        scenePresetsScrollView.translatesAutoresizingMaskIntoConstraints = false
+        scenePresetsScrollView.drawsBackground = false
+        scenePresetsScrollView.hasVerticalScroller = true
+        scenePresetsScrollView.hasHorizontalScroller = false
+        scenePresetsScrollView.autohidesScrollers = true
+        scenePresetsScrollView.borderType = .noBorder
+        scenePresetsScrollView.documentView = sceneDocumentView
+        scenePresetsScrollView.heightAnchor.constraint(equalToConstant: 118).isActive = true
+
+        let scenesSection = DashboardViewController.makeSection(
+            arrangedSubviews: [scenesTitleLabel, scenesHintLabel, saveSceneButton, scenePresetsScrollView]
+        )
+
+        // 4. Toggles Section
         moveModeSwitch.target = self
         moveModeSwitch.action = #selector(toggleMoveMode)
         let moveModeRow = DashboardViewController.makeSwitchRow(title: "Move Mode", icon: "arrow.up.and.down.and.arrow.left.and.right", toggle: moveModeSwitch)
@@ -230,7 +294,7 @@ final class DashboardViewController: NSViewController {
 
         let togglesSection = DashboardViewController.makeSection(arrangedSubviews: [moveModeRow, clickThroughRow])
 
-        // 4. Sliders Section
+        // 5. Sliders Section
         scaleSlider.target = self
         scaleSlider.action = #selector(scaleChanged)
         opacitySlider.target = self
@@ -266,7 +330,7 @@ final class DashboardViewController: NSViewController {
 
         let slidersSection = DashboardViewController.makeSection(arrangedSubviews: [scaleStack, opacityStack])
 
-        // 5. Library
+        // 6. Library
         let libraryTitleLabel = NSTextField(labelWithString: "Library")
         libraryTitleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
 
@@ -311,7 +375,7 @@ final class DashboardViewController: NSViewController {
             arrangedSubviews: [libraryTitleLabel, libraryHintLabel, libraryScrollView]
         )
 
-        // 6. Actions
+        // 7. Actions
         let openButton = NSButton(title: "Open…", target: self, action: #selector(openAnimationFile))
         openButton.bezelStyle = .rounded
         openButton.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
@@ -339,7 +403,7 @@ final class DashboardViewController: NSViewController {
 
         let actionsSection = DashboardViewController.makeSection(arrangedSubviews: [buttonRow, optionsButton])
 
-        // 7. Footer
+        // 8. Footer
         let hideButton = NSButton(image: NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "Hide Dashboard")!, target: self, action: #selector(hideDashboard))
         hideButton.isBordered = false
         hideButton.contentTintColor = .secondaryLabelColor
@@ -363,7 +427,7 @@ final class DashboardViewController: NSViewController {
         leftColumnStack.spacing = 14
         leftColumnStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let rightColumnStack = NSStackView(views: [togglesSection, slidersSection, actionsSection, footerStack])
+        let rightColumnStack = NSStackView(views: [scenesSection, togglesSection, slidersSection, actionsSection, footerStack])
         rightColumnStack.orientation = .vertical
         rightColumnStack.alignment = .leading
         rightColumnStack.spacing = 14
@@ -387,6 +451,7 @@ final class DashboardViewController: NSViewController {
         leftColumnStack.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
         activeSection.widthAnchor.constraint(equalTo: leftColumnStack.widthAnchor).isActive = true
         librarySection.widthAnchor.constraint(equalTo: leftColumnStack.widthAnchor).isActive = true
+        scenesSection.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
         togglesSection.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
         slidersSection.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
         actionsSection.widthAnchor.constraint(equalTo: rightColumnStack.widthAnchor).isActive = true
@@ -428,7 +493,9 @@ final class DashboardViewController: NSViewController {
 
     func render(_ state: DashboardState) {
         reloadActiveCompanions(state.activeCompanions)
+        reloadScenePresets(state.scenePresets)
         setSelectionControlsEnabled(state.hasSelectedCompanion)
+        saveSceneButton.isEnabled = state.hasActiveCompanions
         moveModeSwitch.state = state.moveModeEnabled ? .on : .off
         clickThroughSwitch.state = state.clickThroughEnabled ? .on : .off
         
@@ -544,6 +611,49 @@ final class DashboardViewController: NSViewController {
         }
 
         delegate?.dashboardViewController(self, didRequestRemoveActiveCompanion: id)
+    }
+
+    @objc private func saveScenePreset() {
+        let alert = NSAlert()
+        alert.messageText = "Save Scene"
+        alert.informativeText = "Choose a name for the current companion layout."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        alert.accessoryView = textField
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didRequestSaveScenePreset: textField.stringValue)
+    }
+
+    @objc private func loadScenePreset(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didRequestLoadScenePreset: id)
+    }
+
+    @objc private func deleteScenePreset(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else {
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Delete Scene?"
+        alert.informativeText = "This removes the saved scene preset from SpriteFlux."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+
+        delegate?.dashboardViewController(self, didRequestDeleteScenePreset: id)
     }
 
     @objc private func openOptions() {
@@ -685,6 +795,22 @@ final class DashboardViewController: NSViewController {
         }
     }
 
+    private func reloadScenePresets(_ presets: [DashboardScenePreset]) {
+        scenePresetsStack.arrangedSubviews.forEach { view in
+            scenePresetsStack.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+
+        guard presets.isEmpty == false else {
+            scenePresetsStack.addArrangedSubview(scenePresetsEmptyLabel)
+            return
+        }
+
+        for preset in presets {
+            scenePresetsStack.addArrangedSubview(makeScenePresetRow(for: preset))
+        }
+    }
+
     private func makeLibraryAssetRow(for asset: DashboardLibraryAsset) -> NSView {
         let thumbnailImageView = NSImageView()
         thumbnailImageView.translatesAutoresizingMaskIntoConstraints = false
@@ -749,6 +875,53 @@ final class DashboardViewController: NSViewController {
 
         let row = NSStackView(views: [thumbnailImageView, labelsStack, controlsStack])
         row.identifier = NSUserInterfaceItemIdentifier(asset.id)
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 10
+        labelsStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        controlsStack.setContentHuggingPriority(.required, for: .horizontal)
+        return row
+    }
+
+    private func makeScenePresetRow(for preset: DashboardScenePreset) -> NSView {
+        let iconView = DashboardViewController.makeIcon(symbolName: "square.stack.3d.up", tint: .labelColor)
+
+        let nameLabel = NSTextField(labelWithString: preset.name)
+        nameLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        nameLabel.lineBreakMode = .byTruncatingTail
+        nameLabel.maximumNumberOfLines = 1
+
+        let detailLabel = NSTextField(labelWithString: preset.detailLabel)
+        detailLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        detailLabel.textColor = .secondaryLabelColor
+        detailLabel.lineBreakMode = .byTruncatingTail
+        detailLabel.maximumNumberOfLines = 1
+
+        let labelsStack = NSStackView(views: [nameLabel, detailLabel])
+        labelsStack.orientation = .vertical
+        labelsStack.alignment = .leading
+        labelsStack.spacing = 3
+
+        let loadButton = makeLibraryActionButton(
+            symbolName: "arrow.clockwise.circle",
+            toolTip: "Load scene",
+            id: preset.id,
+            action: #selector(loadScenePreset(_:))
+        )
+
+        let deleteButton = makeLibraryActionButton(
+            symbolName: "trash",
+            toolTip: "Delete scene",
+            id: preset.id,
+            action: #selector(deleteScenePreset(_:))
+        )
+
+        let controlsStack = NSStackView(views: [loadButton, deleteButton])
+        controlsStack.orientation = .horizontal
+        controlsStack.alignment = .centerY
+        controlsStack.spacing = 4
+
+        let row = NSStackView(views: [iconView, labelsStack, controlsStack])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 10

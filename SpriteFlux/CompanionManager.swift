@@ -15,17 +15,30 @@ struct CompanionState: Codable, Equatable {
     var clickThroughEnabled: Bool
 }
 
+struct ScenePreset: Codable, Equatable {
+    let id: String
+    let createdAt: Date
+    var name: String
+    var updatedAt: Date
+    var companions: [CompanionState]
+    var selectedCompanionID: String?
+}
+
 final class CompanionManager {
     static let shared = CompanionManager()
 
     private enum Keys {
         static let activeCompanions = "activeCompanions"
         static let selectedCompanionID = "selectedCompanionID"
+        static let scenePresets = "scenePresets"
     }
 
     private let defaults = UserDefaults.standard
     private let assetLibrary = AssetLibraryManager.shared
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
     private var companions: [CompanionState] = []
+    private var scenePresets: [ScenePreset] = []
     private var controllers: [String: OverlayWindowController] = [:]
 
     var selectedCompanionID: String? {
@@ -38,6 +51,8 @@ final class CompanionManager {
     }
 
     private init() {
+        encoder.dateEncodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601
         loadPersistedState()
         rebuildControllers()
         normalizeSelection()
@@ -66,6 +81,15 @@ final class CompanionManager {
             return nil
         }
         return assetLibrary.entry(id: companion.assetEntryID)
+    }
+
+    func allScenePresets() -> [ScenePreset] {
+        scenePresets.sorted { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt {
+                return lhs.updatedAt > rhs.updatedAt
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
     }
 
     func bootstrapLegacyCompanionIfNeeded(from legacyURL: URL?) {
@@ -168,10 +192,98 @@ final class CompanionManager {
         selectedController()?.setOpacity(opacity)
     }
 
+    @discardableResult
+    func saveScenePreset(named name: String) throws -> ScenePreset {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.isEmpty == false else {
+            throw CompanionManagerError.invalidPresetName
+        }
+        guard companions.isEmpty == false else {
+            throw CompanionManagerError.emptyScene
+        }
+
+        let now = Date()
+        let presetCompanions = companions
+        let normalizedSelectedID = normalizedSelectedCompanionID(selectedCompanionID, in: presetCompanions)
+        let preset: ScenePreset
+
+        if let index = scenePresets.firstIndex(where: { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame }) {
+            scenePresets[index].name = trimmedName
+            scenePresets[index].updatedAt = now
+            scenePresets[index].companions = presetCompanions
+            scenePresets[index].selectedCompanionID = normalizedSelectedID
+            preset = scenePresets[index]
+        } else {
+            preset = ScenePreset(
+                id: UUID().uuidString,
+                createdAt: now,
+                name: trimmedName,
+                updatedAt: now,
+                companions: presetCompanions,
+                selectedCompanionID: normalizedSelectedID
+            )
+            scenePresets.append(preset)
+        }
+
+        try persistState()
+        postStateDidChange()
+        return preset
+    }
+
+    func loadScenePreset(id: String) throws {
+        guard let preset = scenePresets.first(where: { $0.id == id }) else {
+            throw CompanionManagerError.presetNotFound
+        }
+
+        let validCompanions = sanitize(companions: preset.companions)
+        guard validCompanions.isEmpty == false else {
+            throw CompanionManagerError.emptyScene
+        }
+
+        replaceScene(with: validCompanions, selectedCompanionID: normalizedSelectedCompanionID(preset.selectedCompanionID, in: validCompanions))
+    }
+
+    func deleteScenePreset(id: String) throws {
+        guard let index = scenePresets.firstIndex(where: { $0.id == id }) else {
+            throw CompanionManagerError.presetNotFound
+        }
+
+        scenePresets.remove(at: index)
+        try persistState()
+        postStateDidChange()
+    }
+
+    func removePresetAssetReferences(assetEntryID: String) {
+        let updatedPresets = scenePresets.compactMap { preset -> ScenePreset? in
+            let remainingCompanions = preset.companions.filter { $0.assetEntryID != assetEntryID }
+            guard remainingCompanions.isEmpty == false else {
+                return nil
+            }
+
+            var updatedPreset = preset
+            updatedPreset.companions = remainingCompanions
+            updatedPreset.selectedCompanionID = normalizedSelectedCompanionID(preset.selectedCompanionID, in: remainingCompanions)
+            return updatedPreset
+        }
+
+        guard updatedPresets != scenePresets else {
+            return
+        }
+
+        scenePresets = updatedPresets
+        persistIgnoringErrors()
+        postStateDidChange()
+    }
+
     private func loadPersistedState() {
         if let data = defaults.data(forKey: Keys.activeCompanions),
-           let decoded = try? JSONDecoder().decode([CompanionState].self, from: data) {
+           let decoded = try? decoder.decode([CompanionState].self, from: data) {
             companions = decoded
+        }
+
+        if let data = defaults.data(forKey: Keys.scenePresets),
+           let decoded = try? decoder.decode([ScenePreset].self, from: data) {
+            scenePresets = decoded
         }
 
         selectedCompanionID = defaults.string(forKey: Keys.selectedCompanionID)
@@ -192,6 +304,7 @@ final class CompanionManager {
         }
 
         companions = validCompanions
+        sanitizeScenePresets()
         persistIgnoringErrors()
     }
 
@@ -245,9 +358,58 @@ final class CompanionManager {
         postStateDidChange()
     }
 
+    private func replaceScene(with companions: [CompanionState], selectedCompanionID: String?) {
+        controllers.values.forEach { $0.close() }
+        controllers.removeAll()
+        self.companions = companions
+
+        for (index, companion) in companions.enumerated() {
+            guard let entry = assetLibrary.entry(id: companion.assetEntryID) else {
+                continue
+            }
+
+            let controller = makeController(for: companion, assetEntry: entry, index: index)
+            controllers[companion.id] = controller
+            controller.showWindow(nil)
+        }
+
+        self.selectedCompanionID = normalizedSelectedCompanionID(selectedCompanionID, in: companions)
+        persistIgnoringErrors()
+        postStateDidChange()
+    }
+
+    private func sanitizeScenePresets() {
+        scenePresets = scenePresets.compactMap { preset in
+            let validCompanions = sanitize(companions: preset.companions)
+            guard validCompanions.isEmpty == false else {
+                return nil
+            }
+
+            var sanitizedPreset = preset
+            sanitizedPreset.companions = validCompanions
+            sanitizedPreset.selectedCompanionID = normalizedSelectedCompanionID(preset.selectedCompanionID, in: validCompanions)
+            return sanitizedPreset
+        }
+    }
+
+    private func sanitize(companions: [CompanionState]) -> [CompanionState] {
+        companions.filter { assetLibrary.entry(id: $0.assetEntryID) != nil }
+    }
+
+    private func normalizedSelectedCompanionID(_ selectedCompanionID: String?, in companions: [CompanionState]) -> String? {
+        if let selectedCompanionID,
+           companions.contains(where: { $0.id == selectedCompanionID }) {
+            return selectedCompanionID
+        }
+
+        return companions.first?.id
+    }
+
     private func persistState() throws {
-        let data = try JSONEncoder().encode(companions)
-        defaults.set(data, forKey: Keys.activeCompanions)
+        let companionsData = try encoder.encode(companions)
+        let presetsData = try encoder.encode(scenePresets)
+        defaults.set(companionsData, forKey: Keys.activeCompanions)
+        defaults.set(presetsData, forKey: Keys.scenePresets)
         defaults.set(selectedCompanionID, forKey: Keys.selectedCompanionID)
     }
 
@@ -262,4 +424,7 @@ final class CompanionManager {
 
 enum CompanionManagerError: Error {
     case assetNotFound
+    case presetNotFound
+    case invalidPresetName
+    case emptyScene
 }

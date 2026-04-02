@@ -229,12 +229,23 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
             )
         }
 
+        let scenePresets = companionManager.allScenePresets().map { preset in
+            let companionCount = preset.companions.count
+            return DashboardScenePreset(
+                id: preset.id,
+                name: preset.name,
+                detailLabel: companionCount == 1 ? "1 companion" : "\(companionCount) companions"
+            )
+        }
+
         let state = DashboardState(
             currentFileName: selectedEntry?.displayName,
             currentFileURL: selectedController?.currentMediaURL,
             activeCompanions: activeCompanions,
             libraryAssets: libraryAssets,
+            scenePresets: scenePresets,
             hasSelectedCompanion: selectedCompanion != nil,
+            hasActiveCompanions: activeCompanions.isEmpty == false,
             moveModeEnabled: selectedController?.isMoveModeEnabled ?? false,
             clickThroughEnabled: selectedController?.clickThroughEnabled ?? false,
             scale: selectedCompanion?.scale ?? 1.0,
@@ -316,6 +327,7 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     func dashboardViewController(_ controller: DashboardViewController, didDeleteLibraryAsset id: String) {
         do {
             companionManager.removeCompanions(usingAssetEntryID: id)
+            companionManager.removePresetAssetReferences(assetEntryID: id)
             try assetLibrary.removeEntry(id: id)
             updateDashboardState()
         } catch {
@@ -331,6 +343,39 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
     func dashboardViewController(_ controller: DashboardViewController, didRequestRemoveActiveCompanion id: String) {
         companionManager.removeCompanion(id: id)
         updateDashboardState()
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRequestSaveScenePreset name: String) {
+        do {
+            _ = try companionManager.saveScenePreset(named: name)
+            updateDashboardState()
+        } catch {
+            showScenePresetAlert(
+                messageText: "Unable to Save Scene",
+                informativeText: "Choose a non-empty name and make sure at least one companion is active."
+            )
+        }
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRequestLoadScenePreset id: String) {
+        do {
+            try companionManager.loadScenePreset(id: id)
+            updateDashboardState()
+        } catch {
+            showScenePresetAlert(
+                messageText: "Unable to Load Scene",
+                informativeText: "This saved scene no longer contains any available assets."
+            )
+        }
+    }
+
+    func dashboardViewController(_ controller: DashboardViewController, didRequestDeleteScenePreset id: String) {
+        do {
+            try companionManager.deleteScenePreset(id: id)
+            updateDashboardState()
+        } catch {
+            NSSound.beep()
+        }
     }
 
     func dashboardViewControllerDidToggleMoveMode(_ controller: DashboardViewController) {
@@ -366,5 +411,13 @@ final class MenuBarController: NSObject, DashboardViewControllerDelegate {
 
     func dashboardViewControllerDidRequestQuit(_ controller: DashboardViewController) {
         quitApp()
+    }
+
+    private func showScenePresetAlert(messageText: String, informativeText: String) {
+        let alert = NSAlert()
+        alert.messageText = messageText
+        alert.informativeText = informativeText
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }

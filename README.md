@@ -13,6 +13,7 @@ SpriteFlux is a native macOS menu bar overlay app that displays a floating anima
 - Editable global hotkey for Move Mode, defaulting to Cmd + Shift + M
 - Persistent companion scene state (active companions, positions, and controls)
 - Saved asset library with copied files, thumbnails, favorites, rename, and delete actions
+- Saved scene presets for reloading named companion layouts
 
 ## Requirements
 - macOS 12.0 or later
@@ -40,6 +41,7 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 - `Click-through` Enable or disable mouse passthrough.
 - `Reset Position` Move the overlay to the default center-right position.
 - `Library` Import assets into SpriteFlux, then add them into the scene, favorite them, rename them, or delete them from the dashboard.
+- `Scenes` Save the current companion layout and reload or delete named scene presets.
 - `Drag and drop` Drop a supported file onto the dashboard to import it into the library and add it as a new companion immediately.
 - `Shortcuts…` Open the shortcuts view, edit the Toggle Move Mode hotkey, or go back to the dashboard.
 - `Hide Dashboard` Close the dashboard without quitting SpriteFlux.
@@ -56,4 +58,4 @@ The app runs as a menu bar agent (no Dock icon). The dashboard window opens auto
 - `Quit` Exit SpriteFlux.
 
 ## Load Assets
-Use the dashboard action `Open…`, drag a file onto the dashboard, or use `Library`. Imported assets are copied into SpriteFlux's Application Support folder so the library keeps working even if the original file moves. SpriteFlux currently supports `.mp4`, `.mov`, `.gif`, `.png`, `.jpg`, `.jpeg`, and `.webp` assets. Each imported asset can be added to the scene as its own companion window, and the current scene is restored on launch.
+Use the dashboard action `Open…`, drag a file onto the dashboard, or use `Library`. Imported assets are copied into SpriteFlux's Application Support folder so the library keeps working even if the original file moves. SpriteFlux currently supports `.mp4`, `.mov`, `.gif`, `.png`, `.jpg`, `.jpeg`, and `.webp` assets. Each imported asset can be added to the scene as its own companion window, the current scene is restored on launch, and named scene presets can restore saved layouts later.

@@ -31,6 +31,7 @@ DONE
 - Added multi-companion scene support with persisted active companions and per-companion overlay windows.
 - Updated the dashboard to select and manage active companions while adding assets from the library into the current scene.
 - Reworked the dashboard into a wider two-column layout to keep the default window height under control.
+- Added saved scene presets for named layout save/load/delete actions from the dashboard.
 - Reviewed Xcode's recommended settings and applied the safe subset in the project file.
 
 IN-PROGRESS
